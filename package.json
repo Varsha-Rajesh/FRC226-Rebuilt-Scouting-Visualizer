@@ -1,0 +1,35 @@
+{
+  "name": "fhmwhfiwufherwiuf",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "build": "echo 'No build step required'",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@sgratzl/chartjs-chart-boxplot": "^4.4.4",
+    "@vercel/blob": "^1.0.1",
+    "chart.js": "^4.4.9",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "multer": "^1.4.5-lts.2",
+    "papaparse": "^5.5.3",
+    "serve-favicon": "^2.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Varsha-Rajesh/FRC226-Reefscape-Offseason-Visualizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Varsha-Rajesh/FRC226-Reefscape-Offseason-Visualizer/issues"
+  },
+  "homepage": "https://github.com/Varsha-Rajesh/FRC226-Reefscape-Offseason-Visualizer#readme",
+  "description": ""
+}
