@@ -1,25 +1,16 @@
-require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-const TBA_KEY = process.env.TBA_KEY || '';
+// Use /tmp for file operations on Vercel (writable directory)
+const uploadDir = path.join(os.tmpdir(), 'uploads');
+const tempDir = path.join(os.tmpdir(), 'temp');
 
-async function proxyFetch(url, options) {
-  if (typeof fetch === 'function') {
-    return fetch(url, options);
-  }
-  const { default: nodeFetch } = await import('node-fetch');
-  return nodeFetch(url, options);
-}
-
-const uploadDir = path.join(__dirname, 'uploads');
-const tempDir = path.join(__dirname, 'temp');
-
+// Create directories if they don't exist
 [uploadDir, tempDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -27,6 +18,7 @@ const tempDir = path.join(__dirname, 'temp');
   }
 });
 
+// Helper function to delete files
 async function deleteIfExists(filename) {
   const filePath = path.join(uploadDir, filename);
   try {
@@ -40,6 +32,7 @@ async function deleteIfExists(filename) {
   }
 }
 
+// Configure multer for file uploads
 const upload = multer({
   dest: tempDir,
   fileFilter: (req, file, cb) => {
@@ -54,10 +47,11 @@ const upload = multer({
   }
 });
 
-app.use(favicon(path.join(__dirname, 'public', 'images', 'favicon.ico')));
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadDir));
 
+// Upload endpoint
 app.post('/uploads', upload.single('dataFile'), async (req, res) => {
   console.log('Upload request received');
 
@@ -102,6 +96,7 @@ app.post('/uploads', upload.single('dataFile'), async (req, res) => {
   }
 });
 
+// Delete endpoint
 app.delete('/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(uploadDir, filename);
@@ -120,38 +115,10 @@ app.delete('/uploads/:filename', (req, res) => {
   }
 });
 
+// Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/tba/event/:eventKey/matches', async (req, res) => {
-  const eventKey = req.params.eventKey;
-  try {
-    const url = `https://www.thebluealliance.com/api/v3/event/${encodeURIComponent(eventKey)}/matches`;
-    const r = await proxyFetch(url, { headers: { 'X-TBA-Auth-Key': TBA_KEY } });
-    const text = await r.text();
-    if (!r.ok) return res.status(r.status).send(text);
-    res.type('application/json').send(text);
-  } catch (err) {
-    console.error('TBA event proxy error', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/tba/team/:teamNumber', async (req, res) => {
-  const teamNumber = req.params.teamNumber;
-  try {
-    const url = `https://www.thebluealliance.com/api/v3/team/frc${encodeURIComponent(teamNumber)}`;
-    const r = await proxyFetch(url, { headers: { 'X-TBA-Auth-Key': TBA_KEY } });
-    const text = await r.text();
-    if (!r.ok) return res.status(r.status).send(text);
-    res.type('application/json').send(text);
-  } catch (err) {
-    console.error('TBA team proxy error', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+// Export for Vercel
+module.exports = app;
