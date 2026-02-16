@@ -6,11 +6,9 @@ const os = require('os');
 
 const app = express();
 
-// Use /tmp for file operations on Vercel (writable directory)
 const uploadDir = path.join(os.tmpdir(), 'uploads');
 const tempDir = path.join(os.tmpdir(), 'temp');
 
-// Create directories if they don't exist
 [uploadDir, tempDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -18,7 +16,6 @@ const tempDir = path.join(os.tmpdir(), 'temp');
   }
 });
 
-// Helper function to delete files
 async function deleteIfExists(filename) {
   const filePath = path.join(uploadDir, filename);
   try {
@@ -32,7 +29,6 @@ async function deleteIfExists(filename) {
   }
 }
 
-// Configure multer for file uploads
 const upload = multer({
   dest: tempDir,
   fileFilter: (req, file, cb) => {
@@ -47,11 +43,9 @@ const upload = multer({
   }
 });
 
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadDir));
 
-// Upload endpoint
 app.post('/uploads', upload.single('dataFile'), async (req, res) => {
   console.log('Upload request received');
 
@@ -115,10 +109,8 @@ app.delete('/uploads/:filename', (req, res) => {
   }
 });
 
-// Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Export for Vercel
 module.exports = app;
