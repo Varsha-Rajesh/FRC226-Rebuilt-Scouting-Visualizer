@@ -4249,9 +4249,7 @@ function populateMatchTeams() {
   }
 }
 function renderMatchSummary(teams) {
-  console.log("renderMatchSummary called with teams:", teams);
   const summaryDiv = document.getElementById('matchSummaryTable');
-  console.log("summaryDiv found:", summaryDiv);
 
   if (!summaryDiv) return;
 
@@ -4271,19 +4269,6 @@ function renderMatchSummary(teams) {
   }
 
   const eventData = parseCSV().data;
-
-  loadPitScoutingData();
-
-  const calculateTeamEPA = (team) => {
-    if (!team) return 0;
-    const teamMatches = eventData.filter(row => {
-      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-      return teamNum === team;
-    });
-    const totalPoints = teamMatches.map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0)).filter(v => !isNaN(v));
-    const avgTotalPoints = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
-    return avgTotalPoints + (oprData[team]?.totalOPR || 0);
-  };
 
   const calculateClimbRate = (team) => {
     if (!team) return '0.0%';
@@ -4306,6 +4291,84 @@ function renderMatchSummary(teams) {
     return rate + '%';
   };
 
+  const calculateShootingAccuracy = (team) => {
+    if (!team) return '0.0';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    });
+
+    const shootingValues = teamMatches
+      .map(row => parseFloat(row['Shooting Accuracy']))
+      .filter(v => !isNaN(v) && [0, 1, 2, 3].includes(v));
+
+    if (shootingValues.length === 0) return '0.0';
+
+    const avgAccuracy = shootingValues.reduce((a, b) => a + b, 0) / shootingValues.length;
+    return avgAccuracy.toFixed(1);
+  };
+
+  const getMostCommonClimb = (team) => {
+    if (!team) return 'N/A';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    });
+
+    const climbValues = teamMatches
+      .map(row => row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim())
+      .filter(v => v && v !== '' && v !== '0' && v !== 'F');
+
+    if (climbValues.length === 0) return 'N/A';
+
+    const climbCounts = { '1': 0, '2': 0, '3': 0 };
+    climbValues.forEach(value => {
+      if (climbCounts.hasOwnProperty(value)) {
+        climbCounts[value]++;
+      }
+    });
+
+    let mostCommonLevel = '1';
+    let maxCount = 0;
+    
+    ['3', '2', '1'].forEach(level => {
+      if (climbCounts[level] >= maxCount) {
+        maxCount = climbCounts[level];
+        mostCommonLevel = level;
+      }
+    });
+
+    switch (mostCommonLevel) {
+      case '1': return 'L1';
+      case '2': return 'L2';
+      case '3': return 'L3';
+      default: return 'N/A';
+    }
+  };
+
+  const getAverageClimbTime = (team, targetLevel) => {
+    if (!team) return 'N/A';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    });
+
+    const levelNum = targetLevel.replace('L', '');
+    
+    const climbTimes = teamMatches
+      .filter(row => {
+        const climbValue = row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim();
+        const climbTime = parseFloat(row['Climb Time'] || row['Climb Time per Level'] || 0);
+        return climbValue === levelNum && !isNaN(climbTime) && climbTime > 0;
+      })
+      .map(row => parseFloat(row['Climb Time'] || row['Climb Time per Level'] || 0));
+
+    if (climbTimes.length === 0) return 'N/A';
+
+    const avgTime = climbTimes.reduce((a, b) => a + b, 0) / climbTimes.length;
+    return avgTime.toFixed(1) + 's';
+  };
+
   const calculateDiedRate = (team) => {
     if (!team) return '0%';
     const teamMatches = eventData.filter(row => {
@@ -4323,18 +4386,26 @@ function renderMatchSummary(teams) {
     return Math.round((diedCount / teamMatches.length) * 100) + '%';
   };
 
-  const checkShootOnFly = (team) => {
-    if (!team || !pitScoutingData || pitScoutingData.length === 0) return '❌';
-
-    const pitData = pitScoutingData.find(row => {
+  const getDeathMatches = (team) => {
+    if (!team) return [];
+    const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
     });
 
-    if (!pitData) return '❌';
+    const deathMatches = teamMatches
+      .filter(row => {
+        const died = row['Robot Died']?.toString().trim() || row['Died or Immobilized']?.toString().trim();
+        return died === '1' || died === '0.5' || died === 'true';
+      })
+      .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
+      .filter(m => m);
 
-    const shootOnFly = pitData['Shoot on Fly']?.toString().trim();
-    return (shootOnFly === '1' || shootOnFly === 'true' || shootOnFly === 'yes') ? '✅' : '❌';
+    return deathMatches.sort((a, b) => {
+      const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
+      const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
+      return numA - numB;
+    });
   };
 
   const calculateAvgDefenseRating = (team) => {
@@ -4358,6 +4429,56 @@ function renderMatchSummary(teams) {
   };
 
   let summaryHTML = `
+        <style>
+          .team-cell-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+          }
+          .team-cell-wrapper:hover .death-tooltip {
+            display: block !important;
+          }
+          .death-tooltip {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 100%;
+            transform: translateY(-50%);
+            margin-left: 12px;
+            background-color: #23242a;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Lato', sans-serif;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            border: 1px solid;
+          }
+          .death-tooltip-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 4px;
+          }
+          .death-tooltip-row:last-child {
+            margin-bottom: 0;
+          }
+          .death-tooltip-label {
+            font-weight: bold;
+            min-width: 70px;
+          }
+          .death-tooltip-value {
+            font-weight: bold;
+            color: white;
+          }
+          .death-tooltip-team {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-align: center;
+          }
+        </style>
         <div style="background-color: #1C1E21; border-radius: 12px; padding: 20px; margin-top: 20px; overflow-x: auto; width: 100%; max-width: 100%; box-sizing: border-box;">
             <h3 style="color: white; margin: 0 0 20px 0; font-size: 20px; font-family: 'Lato', sans-serif; padding-bottom: 10px;">
                 Match Summary
@@ -4366,13 +4487,13 @@ function renderMatchSummary(teams) {
                 <thead>
                     <tr style="border-bottom: 2px solid white;">
                         <th style="padding: 12px 8px; text-align: left; color: white; font-weight: bold;">Team</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">EPA</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Total OPR</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Auto OPR</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Tele OPR</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Shooting Acc</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Most Common</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Time</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Rate</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Died %</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Shoot On Fly</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Defense</th>
                     </tr>
                 </thead>
@@ -4383,24 +4504,52 @@ function renderMatchSummary(teams) {
     if (!team) return;
 
     const alliance = index < 3 ? 'Red' : 'Blue';
+    const allianceColor = alliance === 'Red' ? '#ff5c5c' : '#3EDBF0';
     const stats = oprData[team] || { autoOPR: 0, teleOPR: 0, totalOPR: 0 };
-    const epa = calculateTeamEPA(team);
+    const shootingAccuracy = calculateShootingAccuracy(team);
+    const mostCommonClimb = getMostCommonClimb(team);
+    const climbTime = getAverageClimbTime(team, mostCommonClimb);
     const climbRate = calculateClimbRate(team);
     const diedRate = calculateDiedRate(team);
-    const shootOnFly = checkShootOnFly(team);
+    const deathMatches = getDeathMatches(team);
     const defenseRating = calculateAvgDefenseRating(team);
     const teamCellBg = alliance === 'Red' ? '#ff5c5c30' : '#3EDBF030';
 
+    let teamDisplay = team;
+    let tooltipHTML = '';
+    if (diedRate !== '0%') {
+      teamDisplay = `⚠️${team}⚠️`;
+      const matchesStr = deathMatches.join(', ');
+      tooltipHTML = `
+        <div class="death-tooltip" style="border-color: ${allianceColor};">
+          <div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Died %:</span>
+            <span class="death-tooltip-value">${diedRate}</span>
+          </div>
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Matches:</span>
+            <span class="death-tooltip-value">${matchesStr}</span>
+          </div>
+        </div>
+      `;
+    }
+
     summaryHTML += `
             <tr>
-                <td style="padding: 10px 8px; background-color: ${teamCellBg}; color: white; font-weight: bold;">${team}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${epa.toFixed(2)}</td>
+                <td style="padding: 10px 8px; background-color: ${teamCellBg}; color: white; font-weight: bold;">
+                  <span class="team-cell-wrapper">
+                    ${teamDisplay}
+                    ${tooltipHTML}
+                  </span>
+                </td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${stats.totalOPR.toFixed(2)}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${stats.autoOPR.toFixed(2)}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${stats.teleOPR.toFixed(2)}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${shootingAccuracy}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${mostCommonClimb}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${climbTime}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${climbRate}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${diedRate}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${shootOnFly}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${defenseRating}</td>
             </tr>
         `;
@@ -4423,12 +4572,14 @@ function updateMatchPrediction(teams) {
   const blueTeams = teams.slice(3, 6);
 
   let oprData = {};
+  let autoOprData = {};
   if (oprCsvText && oprCsvText.trim()) {
     const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
     parsed.data.forEach(row => {
       const team = row['Team Number']?.toString().trim();
       if (team) {
         oprData[team] = parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
+        autoOprData[team] = parseFloat((row['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
       }
     });
   }
@@ -4451,6 +4602,41 @@ function updateMatchPrediction(teams) {
   const totalEPA = redEPA + blueEPA;
   const redPercentage = totalEPA > 0 ? ((redEPA / totalEPA) * 100).toFixed(1) : "50.0";
   const bluePercentage = totalEPA > 0 ? ((blueEPA / totalEPA) * 100).toFixed(1) : "50.0";
+
+  const redAutoOPR = redTeams.reduce((sum, team) => sum + (autoOprData[team] || 0), 0);
+  const blueAutoOPR = blueTeams.reduce((sum, team) => sum + (autoOprData[team] || 0), 0);
+  const totalAutoOPR = redAutoOPR + blueAutoOPR;
+  const redAutoPercentage = totalAutoOPR > 0 ? ((redAutoOPR / totalAutoOPR) * 100).toFixed(1) : "50.0";
+  const blueAutoPercentage = totalAutoOPR > 0 ? ((blueAutoOPR / totalAutoOPR) * 100).toFixed(1) : "50.0";
+
+  let firstShiftAlliance = '';
+  let secondShiftAlliance = '';
+  let firstShiftColor = '';
+  let secondShiftColor = '';
+  
+  if (redAutoOPR < blueAutoOPR) {
+    firstShiftAlliance = 'RED';
+    firstShiftColor = '#ff5c5c';
+    secondShiftAlliance = 'BLUE';
+    secondShiftColor = '#3EDBF0';
+  } else if (blueAutoOPR < redAutoOPR) {
+    firstShiftAlliance = 'BLUE';
+    firstShiftColor = '#3EDBF0';
+    secondShiftAlliance = 'RED';
+    secondShiftColor = '#ff5c5c';
+  } else {
+    firstShiftAlliance = 'RED';
+    firstShiftColor = '#ff5c5c';
+    secondShiftAlliance = 'BLUE';
+    secondShiftColor = '#3EDBF0';
+  }
+
+  let matchWinnerColor = '#1e90ff'; 
+  if (redEPA > blueEPA) {
+    matchWinnerColor = '#ff5c5c';
+  } else if (blueEPA > redEPA) {
+    matchWinnerColor = '#3EDBF0';
+  }
 
   let redAllianceColor, blueAllianceColor;
   let redTextColor, blueTextColor;
@@ -4484,37 +4670,86 @@ function updateMatchPrediction(teams) {
 
   const resultDiv = document.getElementById('matchPredictionResult');
   if (resultDiv) {
-    let winnerLabel = 'Tie';
-    let winnerPercent = Math.max(Number(redPercentage), Number(bluePercentage));
-    if (redEPA > blueEPA) winnerLabel = 'Red Alliance';
-    else if (blueEPA > redEPA) winnerLabel = 'Blue Alliance';
-
     resultDiv.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:stretch;gap:12px;margin:16px 0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="flex:1;text-align:center;">
-            <div style="color: ${redAllianceColor};font-weight:700;font-size:18px;margin-bottom:6px;">Red Alliance</div>
-            <div style="color:${redTextColor};font-size:16px;white-space:nowrap;">${redTeams.join(' - ')}</div>
-            <div style="color:${redAllianceColor};font-size:26px;font-weight:700;margin-top:6px;">${redPercentage}%</div>
-            <div style="color:${redTextColor};font-size:13px;">Total EPA: ${redEPA.toFixed(2)}</div>
+      <div style="display:flex;gap:20px;margin:16px 0;width:100%;">
+        <!-- Match Prediction (Left Side) -->
+        <div style="flex:1;">
+          <div style="text-align:center;margin-bottom:12px;">
+            <span style="color:white;font-size:16px;font-weight:bold;border-bottom:2px solid ${matchWinnerColor};padding-bottom:4px;">MATCH PREDICTION</span>
           </div>
-          <div style="width:180px;text-align:center;">
-            <div style="font-size:20px;color:white;font-weight:800;">VS</div>
+          
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:12px;">
+            <!-- Red Alliance -->
+            <div style="flex:1;text-align:center;">
+              <div style="color: ${redAllianceColor};font-weight:700;font-size:20px;margin-bottom:4px;">Red</div>
+              <div style="color:${redAllianceColor};font-size:24px;font-weight:bold;margin-top:4px;">${redPercentage}%</div>
+              <div style="color:${redTextColor};font-size:14px;margin-top:2px;">EPA: ${redEPA.toFixed(2)}</div>
+            </div>
+            
+            <!-- VS Divider -->
+            <div style="width:40px;text-align:center;">
+              <div style="font-size:16px;color:white;font-weight:bold;">VS</div>
+            </div>
+            
+            <!-- Blue Alliance -->
+            <div style="flex:1;text-align:center;">
+              <div style="color: ${blueAllianceColor};font-weight:700;font-size:20px;margin-bottom:4px;">Blue</div>
+              <div style="color:${blueAllianceColor};font-size:24px;font-weight:bold;margin-top:4px;">${bluePercentage}%</div>
+              <div style="color:${blueTextColor};font-size:14px;margin-top:2px;">EPA: ${blueEPA.toFixed(2)}</div>
+            </div>
           </div>
-          <div style="flex:1;text-align:center;">
-            <div style="color: ${blueAllianceColor};font-weight:700;font-size:18px;margin-bottom:6px;">Blue Alliance</div>
-            <div style="color:${blueTextColor};font-size:16px;white-space:nowrap;">${blueTeams.join(' - ')}</div>
-            <div style="color:${blueAllianceColor};font-size:26px;font-weight:700;margin-top:6px;">${bluePercentage}%</div>
-            <div style="color:${blueTextColor};font-size:13px;">Total EPA: ${blueEPA.toFixed(2)}</div>
+          
+          <!-- Progress bar for Match Prediction -->
+          <div style="width:100%;">
+            <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;display:flex;">
+              <div style="height:100%;width:${redPercentage}%;background:${redBarColor};"></div>
+              <div style="height:100%;width:${bluePercentage}%;background:${blueBarColor};"></div>
+            </div>
           </div>
         </div>
 
-        <div style="width:100%;">
-          <div style="height:8px;background:#222;border-radius:8px;overflow:hidden;display:flex;position:relative;">
-            <div style="height:100%;width:${redPercentage}%;background:${redBarColor};transition:width 0.3s ease;"></div>
-            <div style="height:100%;width:${bluePercentage}%;background:${blueBarColor};transition:width 0.3s ease;"></div>
+        <!-- Alliance Shift (Right Side) -->
+        <div style="flex:1;">
+          <div style="text-align:center;margin-bottom:12px;">
+            <span style="color:white;font-size:16px;font-weight:bold;border-bottom:2px solid ${firstShiftColor};padding-bottom:4px;">ALLIANCE SHIFT</span>
           </div>
           
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;margin-bottom:12px;">
+            <!-- Red Alliance -->
+            <div style="flex:1;text-align:center;">
+              <div style="color: ${firstShiftAlliance === 'RED' ? firstShiftColor : '#666'};font-weight:700;font-size:20px;margin-bottom:4px;">Red</div>
+              <div style="color: ${firstShiftAlliance === 'RED' ? firstShiftColor : '#666'};font-size:24px;font-weight:bold;margin-bottom:2px;">
+                ${firstShiftAlliance === 'RED' ? 'FIRST' : 'SECOND'}
+              </div>
+              <div style="color: ${firstShiftAlliance === 'RED' ? 'white' : '#666'};font-size:14px;font-weight:normal;">
+                Auto OPR: ${redAutoOPR.toFixed(2)}
+              </div>
+            </div>
+            
+            <!-- VS Divider -->
+            <div style="width:40px;text-align:center;padding-top:30px;">
+              <div style="font-size:16px;color:white;font-weight:bold;">VS</div>
+            </div>
+            
+            <!-- Blue Alliance -->
+            <div style="flex:1;text-align:center;">
+              <div style="color: ${firstShiftAlliance === 'BLUE' ? firstShiftColor : '#666'};font-weight:700;font-size:20px;margin-bottom:4px;">Blue</div>
+              <div style="color: ${firstShiftAlliance === 'BLUE' ? firstShiftColor : '#666'};font-size:24px;font-weight:bold;margin-bottom:2px;">
+                ${firstShiftAlliance === 'BLUE' ? 'FIRST' : 'SECOND'}
+              </div>
+              <div style="color: ${firstShiftAlliance === 'BLUE' ? 'white' : '#666'};font-size:14px;font-weight:normal;">
+                Auto OPR: ${blueAutoOPR.toFixed(2)}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Progress bar for Alliance Shift -->
+          <div style="width:100%;">
+            <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;display:flex;">
+              <div style="height:100%;width:${redAutoPercentage}%;background:${redAutoOPR < blueAutoOPR ? '#ff5c5c' : '#666'};"></div>
+              <div style="height:100%;width:${blueAutoPercentage}%;background:${blueAutoOPR < redAutoOPR ? '#3EDBF0' : '#666'};"></div>
+            </div>
+          </div>
         </div>
       </div>
     `;
