@@ -118,22 +118,21 @@
 
                         <div class="filter-group-inline">
                             <h3>Other</h3>
+                            <label class="checkbox-label"><input type="checkbox" value="shootingAccuracy" checked>
+                                Shooting Accuracy</label>
                             <label class="checkbox-label"><input type="checkbox" value="driverSkill" checked> Driver
                                 Skill</label>
                             <label class="checkbox-label"><input type="checkbox" value="countDefenseRatings" checked>
-                                Count Defense
-                                Ratings</label>
+                                Count Defense Ratings</label>
                             <label class="checkbox-label"><input type="checkbox" value="maxDefenseRatings" checked> MAX
-                                Defense
-                                Ratings</label>
+                                Defense Ratings</label>
                             <label class="checkbox-label"><input type="checkbox" value="robotDiedPercent" checked> Robot
-                                Died
-                                %</label>
+                                Died %</label>
                         </div>
 
                     </form>
 
-                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: -20px;">
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
                         <button id="resetFilters"
                             style="padding: 10px 18px; font-size: 16px; cursor: pointer; background-color: #ff1e1e; color: white; border: none; border-radius: 6px;">
                             Reset All
@@ -222,6 +221,7 @@
                                         <th>Auto Climb<br>Successes</th>
                                         <th>Stuck on<br>Bar</th>
                                         <th>Tele OPR</th>
+                                        <th>Shooting Accuracy</th>
                                         <th>Climb Time<br>per Level</th>
                                         <th>AVG Climb<br>Points</th>
                                         <th>Climb<br>Attempts</th>
@@ -275,8 +275,8 @@
                         <h3>Performance</h3>
                         <div class="statsText">
                             <p><strong>EPA:</strong> <span id="averageEPA">0.00</span></p>
-                            <p><strong>Auto OPR:</strong> <span id="autoOPR">0.00</span></p>
-                            <p><strong>Tele OPR:</strong> <span id="teleOPR">0.00</span></p>
+                            <p><strong>Fuel OPR:</strong> <span id="totalOPR">0.00</span></p>
+                            <p><strong>Shooting Accuracy:</strong> <span id="shootingAccuracy">0.00</span></p>
                         </div>
                     </div>
                     <div class="statsContainerText">
@@ -409,7 +409,6 @@
                                     </p>
                                 </div>
                             </div>
-
                             <div>
                                 <h4
                                     style="color: white; margin: 0 0 16px 0; font-size: 18px; font-weight: bold; text-align: left;">
@@ -422,13 +421,13 @@
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Auto OPR:</span>
-                                        <span id="comparisonAutoOPR1" style="font-weight: normal;">0.00</span>
+                                        <span style="font-weight: bold;">Fuel OPR:</span>
+                                        <span id="comparisonTotalOPR1" style="font-weight: normal;">0.00</span>
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Tele OPR:</span>
-                                        <span id="comparisonTeleOPR1" style="font-weight: normal;">0.00</span>
+                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
+                                        <span id="comparisonShootingAccuracy1" style="font-weight: normal;">0.00</span>
                                     </p>
                                 </div>
                             </div>
@@ -589,13 +588,13 @@
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Auto OPR:</span>
-                                        <span id="comparisonAutoOPR2" style="font-weight: normal;">0.00</span>
+                                        <span style="font-weight: bold;">Fuel OPR:</span>
+                                        <span id="comparisonTotalOPR2" style="font-weight: normal;">0.00</span>
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Tele OPR:</span>
-                                        <span id="comparisonTeleOPR2" style="font-weight: normal;">0.00</span>
+                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
+                                        <span id="comparisonShootingAccuracy2" style="font-weight: normal;">0.00</span>
                                     </p>
                                 </div>
                             </div>

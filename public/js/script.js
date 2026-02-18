@@ -28,15 +28,17 @@ const columnMapping = {
   'autoClimbSuccesses': 6,
   'stuckOnBar': 7,
   'teleOPR': 8,
-  'climbTimePerLevel': 9,
-  'avgClimbPoints': 10,
-  'climbAttempts': 11,
-  'climbSuccesses': 12,
-  'driverSkill': 13,
-  'countDefenseRatings': 14,
-  'maxDefenseRatings': 15,
-  'robotDiedPercent': 16
+  'shootingAccuracy': 9,
+  'climbTimePerLevel': 10,
+  'avgClimbPoints': 11,
+  'climbAttempts': 12,
+  'climbSuccesses': 13,
+  'driverSkill': 14,
+  'countDefenseRatings': 15,
+  'maxDefenseRatings': 16,
+  'robotDiedPercent': 17
 };
+
 
 function updateRankingTableColumns() {
   const ths = document.querySelectorAll('#rankingTable thead th');
@@ -92,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderRankingTable() {
-
   if (typeof Papa === 'undefined' || typeof csvText === 'undefined') return;
   const eventScoutingData = Papa.parse(csvText, { header: true }).data;
   const tableBody = document.getElementById('rankingTableBody');
@@ -177,6 +178,15 @@ function renderRankingTable() {
     }).length;
     const robotDiedPercent = matches.length ? ((diedCount / matches.length) * 100).toFixed(1) : '0.0';
 
+    const shootingAccuracy = (() => {
+      const accuracyVals = matches
+        .map(r => parseFloat(r['Shooting Accuracy']))
+        .filter(v => !isNaN(v));
+      return accuracyVals.length > 0
+        ? (accuracyVals.reduce((a, b) => a + b, 0) / accuracyVals.length).toFixed(2)
+        : '0.00';
+    })();
+
     return {
       team,
       avgEPA,
@@ -193,7 +203,8 @@ function renderRankingTable() {
       driverSkill,
       countDefenseRatings,
       maxDefenseRatings,
-      robotDiedPercent
+      robotDiedPercent,
+      shootingAccuracy
     };
   });
 
@@ -214,6 +225,7 @@ function renderRankingTable() {
       stat.autoClimbSuccesses,
       stat.stuckOnBar,
       stat.teleOPR.toFixed(2),
+      stat.shootingAccuracy,
       stat.climbTimePerLevel,
       stat.avgClimbPoints.toFixed(2),
       stat.climbAttempts,
@@ -225,12 +237,16 @@ function renderRankingTable() {
     ];
 
     let html = '';
-    const columnNames = ['Rank', 'Team', 'Avg EPA', 'Avg OPR', 'Auto OPR', 'Auto Climb Attempts', 'Auto Climb Successes', 'Stuck on Bar', 'Tele OPR', 'Climb Time per Level', 'Avg Climb Points', 'Climb Attempts', 'Climb Successes', 'Driver Skill', 'Count Defense Ratings', 'Max Defense Ratings', 'Robot Died %'];
+    const columnNames = ['Rank', 'Team', 'Avg EPA', 'Avg OPR', 'Auto OPR',
+      'Auto Climb Attempts', 'Auto Climb Successes', 'Stuck on Bar',
+      'Tele OPR', 'Shooting Accuracy',
+      'Climb Time per Level', 'Avg Climb Points', 'Climb Attempts',
+      'Climb Successes', 'Driver Skill', 'Count Defense Ratings',
+      'Max Defense Ratings', 'Robot Died %'];
     const flipColumns = ['Stuck on Bar', 'Robot Died %'];
 
     values.forEach((val, i) => {
       let bgColor = '';
-      const colName = columnNames[i];
 
       if (i > 1) {
         const colName = columnNames[i];
@@ -245,6 +261,7 @@ function renderRankingTable() {
             case 'Auto Climb Successes': return s.autoClimbSuccesses;
             case 'Climb Attempts': return s.climbAttempts;
             case 'Climb Successes': return s.climbSuccesses;
+            case 'Shooting Accuracy': return parseFloat(s.shootingAccuracy);
             case 'Climb Time per Level': return s.climbTimePerLevel;
             case 'Avg Climb Points': return s.avgClimbPoints;
             case 'Driver Skill': return s.driverSkill;
@@ -256,10 +273,7 @@ function renderRankingTable() {
           }
         }).filter(v => typeof v === 'number' && !isNaN(v));
 
-        const numVal =
-          colName === 'Robot Died %'
-            ? parseFloat(val)
-            : parseFloat(val);
+        const numVal = parseFloat(val);
 
         if (!isNaN(numVal) && allVals.length) {
           const minVal = Math.min(...allVals);
@@ -343,6 +357,12 @@ document.getElementById('revertIsolateTeamButtonRanking').addEventListener('clic
   renderIsolatedTeamsListRanking();
   renderRankingTable();
   updateRankingTableColumns();
+
+  const isolateButton = document.getElementById('isolateTeamBoxRankingIsolate');
+  if (isolateButton) {
+    isolateButton.style.backgroundColor = '#1e90ff';
+    isolateButton.textContent = 'Isolate';
+  }
 });
 
 function saveRankingFilterState() {
@@ -395,6 +415,8 @@ function loadIsolatedTeamsRanking() {
 function renderIsolatedTeamsListRanking() {
   const list = document.getElementById('isolateTeamListRanking');
   const container = document.getElementById('isolateTeamListContainerRanking');
+  if (!list || !container) return;
+
   list.innerHTML = '';
 
   isolatedTeams.forEach(team => {
@@ -433,7 +455,25 @@ function renderIsolatedTeamsListRanking() {
     list.appendChild(listItem);
   });
 
-  container.style.height = list.children.length > 0 ? `${list.scrollHeight + 10}px` : 'auto';
+  const itemHeight = 42;
+  const maxVisibleItems = 8;
+
+  container.style.transition = 'max-height 0.20s ease, height 0.20s ease';
+
+  if (isolatedTeams.length === 0) {
+    container.style.maxHeight = '0px';
+    container.style.overflowY = 'hidden';
+  } else if (isolatedTeams.length <= maxVisibleItems) {
+    container.style.maxHeight = `${isolatedTeams.length * itemHeight}px`;
+    container.style.overflowY = 'hidden';
+  } else {
+    container.style.maxHeight = `${maxVisibleItems * itemHeight}px`;
+    container.style.overflowY = 'auto';
+  }
+
+  setTimeout(() => {
+    container.scrollTop = container.scrollHeight;
+  }, 40);
 }
 
 document.getElementById('isolateTeamInputRanking').addEventListener('keydown', function (e) {
@@ -681,7 +721,7 @@ async function handleDataUpload(e) {
     try { updateOverviewCharts(); } catch (e) { console.warn('Could not update overview charts on upload', e); }
   };
   reader.readAsText(file);
-    setTimeout(initializeOverviewCharts, 500);
+  setTimeout(initializeOverviewCharts, 500);
 
 }
 
@@ -917,7 +957,7 @@ async function handleDataUpload(e) {
       document.getElementById('latestMatchInfoSidebar').textContent = `Data up till Q${latestMatch}`;
     }
   });
-    setTimeout(initializeOverviewCharts, 500);
+  setTimeout(initializeOverviewCharts, 500);
 
 }
 async function handlePitUpload(e) {
@@ -1611,9 +1651,18 @@ function renderTeamStatistics(teamData, pitScoutingData) {
 
   const epa = avgTotalPoints + totalOPR;
 
+  const shootingAccuracy = (() => {
+    const accuracyVals = teamData
+      .map(row => parseFloat(row['Shooting Accuracy']))
+      .filter(v => !isNaN(v));
+    return accuracyVals.length > 0
+      ? (accuracyVals.reduce((a, b) => a + b, 0) / accuracyVals.length).toFixed(2)
+      : '0.00';
+  })();
+
   document.getElementById('averageEPA').textContent = epa.toFixed(2);
-  document.getElementById('autoOPR').textContent = autoOPR.toFixed(2);
-  document.getElementById('teleOPR').textContent = teleOPR.toFixed(2);
+  document.getElementById('totalOPR').textContent = totalOPR.toFixed(2);
+  document.getElementById('shootingAccuracy').textContent = shootingAccuracy;
 
   const climbTimeVals = teamData
     .map(row => parseFloat(row['Climb Time per Level']))
@@ -1641,7 +1690,6 @@ function renderTeamStatistics(teamData, pitScoutingData) {
   const robotDiedRate = teamData.length ? ((diedCount / teamData.length) * 100).toFixed(1) : '0.0';
   document.getElementById('robotDiedRate').textContent = robotDiedRate;
 }
-
 function renderFlaggedMatches(teamData) {
   const container = document.getElementById('flaggedMatches');
   if (!container) {
@@ -2273,11 +2321,20 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
     }
   }
 
-  const epa = avgTotalPoints + totalOPR;
+  const epa = Math.round((avgTotalPoints + totalOPR) * 10) / 10;
+  
+  const shootingAccuracy = (() => {
+    const accuracyVals = teamData
+      .map(row => parseFloat(row['Shooting Accuracy']))
+      .filter(v => !isNaN(v));
+    return accuracyVals.length > 0
+      ? (accuracyVals.reduce((a, b) => a + b, 0) / accuracyVals.length).toFixed(2)
+      : '0.00';
+  })();
 
-  document.getElementById(`comparisonEPA${column}`).textContent = epa.toFixed(2);
-  document.getElementById(`comparisonAutoOPR${column}`).textContent = autoOPR.toFixed(2);
-  document.getElementById(`comparisonTeleOPR${column}`).textContent = teleOPR.toFixed(2);
+  document.getElementById(`comparisonEPA${column}`).textContent = epa.toFixed(1);
+  document.getElementById(`comparisonTotalOPR${column}`).textContent = totalOPR.toFixed(2);
+  document.getElementById(`comparisonShootingAccuracy${column}`).textContent = shootingAccuracy;
 
   const climbTimeVals = teamData
     .map(row => parseFloat(row['Climb Time per Level']))
@@ -2289,7 +2346,6 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
     climbTimePerLevel = Math.round(climbTimePerLevel * 10) / 10;
   }
   document.getElementById(`comparisonClimbTime${column}`).textContent = climbTimePerLevel.toFixed(2);
-
 
   const climbValues = teamData.map(row => row['Climb Teleop']?.toString().trim()).filter(v => v && v !== '');
 
@@ -2306,7 +2362,6 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
   const robotDiedRate = teamData.length ? ((diedCount / teamData.length) * 100).toFixed(1) : '0.0';
   document.getElementById(`comparisonDiedRate${column}`).textContent = robotDiedRate;
 }
-
 function searchComparison(column) {
 
   if (!window.comparisonTeamData) {
@@ -3620,7 +3675,7 @@ function handleOverviewSearch() {
   const parsedData = parseCSV();
   renderOverviewStackedChart(parsedData.data);
   renderFuelOprChart();
-  
+
 
 }
 
@@ -3651,7 +3706,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setTimeout(() => {
         renderOverviewStackedChart(data);
         renderFuelOprChart();
-      }, 100); 
+      }, 100);
     }
   } catch (err) {
     console.error('Error initializing overview charts on load:', err);
@@ -3889,38 +3944,41 @@ function applyFilters() {
     });
   }
 
-  const allTeams = Object.entries(teamMap).map(([team, data]) => {
-    const avgEPA = data.matchCount > 0 ? (data.epaTotal / data.matchCount).toFixed(1) : '0.0';
-    const avgOPR = oprData[team] || 0;
+const allTeams = Object.entries(teamMap).map(([team, data]) => {
+  const avgPoints = data.matchCount > 0 ? (data.epaTotal / data.matchCount) : 0;
+  
+  const opr = oprData[team] || 0;
+  
+  const epa = Math.round((avgPoints + opr) * 10) / 10;
 
-    const flags = {
-      autoClimb: data.hasAutoClimb,
-      autoCenter: data.hasAutoCenter,
-      autoDepot: data.hasAutoDepot,
-      autoOutpost: data.hasAutoOutpost,
+  const flags = {
+    autoClimb: data.hasAutoClimb,
+    autoCenter: data.hasAutoCenter,
+    autoDepot: data.hasAutoDepot,
+    autoOutpost: data.hasAutoOutpost,
 
-      climbLevel1: data.hasClimbLevel1,
-      climbLevel2: data.hasClimbLevel2,
-      climbLevel3: data.hasClimbLevel3,
+    climbLevel1: data.hasClimbLevel1,
+    climbLevel2: data.hasClimbLevel2,
+    climbLevel3: data.hasClimbLevel3,
 
-      climbPositionCenter: data.hasClimbPositionCenter,
-      climbPositionDepot: data.hasClimbPositionDepot,
-      climbPositionOutpost: data.hasClimbPositionOutpost,
+    climbPositionCenter: data.hasClimbPositionCenter,
+    climbPositionDepot: data.hasClimbPositionDepot,
+    climbPositionOutpost: data.hasClimbPositionOutpost,
 
-      swerve: data.hasSwerve,
-      trench: data.hasTrench,
-      shootOnFly: data.hasShootOnFly,
-      groundIntake: data.hasGroundIntake
-    };
+    swerve: data.hasSwerve,
+    trench: data.hasTrench,
+    shootOnFly: data.hasShootOnFly,
+    groundIntake: data.hasGroundIntake
+  };
 
-    return {
-      team,
-      avgEPA,
-      avgOPR,
-      flags,
-      isHidden: hiddenTeams.includes(team)
-    };
-  });
+  return {
+    team,
+    avgEPA: epa, 
+    avgOPR: opr,
+    flags,
+    isHidden: hiddenTeams.includes(team)
+  };
+});
 
   const passed = allTeams.filter(team => {
     const selectedAutoFilters = selectedFilters.filter(f =>
@@ -3968,13 +4026,13 @@ function applyFilters() {
   let sortFn;
   switch (sortBy) {
     case 'EPA':
-      sortFn = (a, b) => parseFloat(b.avgEPA) - parseFloat(a.avgEPA);
+      sortFn = (a, b) => b.avgEPA - a.avgEPA; 
       break;
     case 'avgOPR':
-      sortFn = (a, b) => parseFloat(b.avgOPR) - parseFloat(a.avgOPR);
+      sortFn = (a, b) => b.avgOPR - a.avgOPR;
       break;
     default:
-      sortFn = (a, b) => parseFloat(b.avgEPA) - parseFloat(a.avgEPA);
+      sortFn = (a, b) => b.avgEPA - a.avgEPA; 
   }
 
   filteredIn.sort(sortFn);
@@ -4053,7 +4111,7 @@ function renderTeamGroup(teams, container, sortBy) {
     let metricValue, metricLabel;
     switch (sortBy) {
       case 'EPA':
-        metricValue = team.avgEPA;
+        metricValue = team.avgEPA; 
         metricLabel = 'Avg. EPA';
         break;
       case 'avgOPR':
@@ -4066,10 +4124,10 @@ function renderTeamGroup(teams, container, sortBy) {
     }
 
     box.innerHTML = `
-      <h3 style="margin: 0 0 10px 0;">Team ${team.team}</h3>
-      <p style="margin: 5px 0;"><strong>${metricLabel}:</strong> ${metricValue}</p>
-      <button class="blue-button" onclick="goToIndividualView('${team.team}')" style="margin-top: 10px;">View</button>
-    `;
+  <h3 style="margin: 0 0 10px 0;">Team ${team.team}</h3>
+  <p style="margin: 5px 0;"><strong>${metricLabel}:</strong> ${metricValue.toFixed(1)}</p>
+  <button class="blue-button" onclick="goToIndividualView('${team.team}')" style="margin-top: 10px;">View</button>
+`;
 
     grid.appendChild(box);
   });
@@ -4330,7 +4388,7 @@ function renderMatchSummary(teams) {
 
     let mostCommonLevel = '1';
     let maxCount = 0;
-    
+
     ['3', '2', '1'].forEach(level => {
       if (climbCounts[level] >= maxCount) {
         maxCount = climbCounts[level];
@@ -4354,7 +4412,7 @@ function renderMatchSummary(teams) {
     });
 
     const levelNum = targetLevel.replace('L', '');
-    
+
     const climbTimes = teamMatches
       .filter(row => {
         const climbValue = row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim();
@@ -4613,7 +4671,7 @@ function updateMatchPrediction(teams) {
   let secondShiftAlliance = '';
   let firstShiftColor = '';
   let secondShiftColor = '';
-  
+
   if (redAutoOPR < blueAutoOPR) {
     firstShiftAlliance = 'RED';
     firstShiftColor = '#ff5c5c';
@@ -4631,7 +4689,7 @@ function updateMatchPrediction(teams) {
     secondShiftColor = '#3EDBF0';
   }
 
-  let matchWinnerColor = '#1e90ff'; 
+  let matchWinnerColor = '#1e90ff';
   if (redEPA > blueEPA) {
     matchWinnerColor = '#ff5c5c';
   } else if (blueEPA > redEPA) {
