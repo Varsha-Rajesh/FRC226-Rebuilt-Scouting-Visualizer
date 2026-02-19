@@ -1406,39 +1406,51 @@ function parseScheduleCSV() {
   }
 }
 
-/*-----TBA-----*/
+/*-----TBA API CONFIGURATION-----*/
+const TBA_API_KEY = 'dkHdbc90y6rrKoG7w15O2YsLW3bWKySKjDItw93b8benEh0ZtNDTK4hYRseZnsT3';
+const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
+
 let teamNameCache = {};
 
 async function fetchTeamName(teamNumber) {
-  if (!teamNumber) return null;
-  if (teamNameCache[teamNumber]) return teamNameCache[teamNumber];
-
-  if (!navigator.onLine) {
-    console.log('Offline: Skipping team name lookup');
-    return null;
-  }
-
-  try {
-    const resp = await fetch(`/api/tba/team/${teamNumber}`);
-    if (!resp.ok) {
-      console.warn('TBA proxy returned', resp.status);
-      return null;
+    if (teamNameCache[teamNumber]) {
+        return teamNameCache[teamNumber];
     }
-    const data = await resp.json();
-    const teamName = data && data.nickname ? data.nickname : null;
-    teamNameCache[teamNumber] = teamName;
-    return teamName;
-  } catch (err) {
-    console.error('Error fetching team name from proxy:', err);
-    return null;
-  }
+
+    if (!navigator.onLine) {
+        console.log('Offline: Skipping TBA API call');
+        return null; 
+    }
+
+    try {
+        const response = await fetch(`${TBA_BASE_URL}/team/frc${teamNumber}`, {
+            headers: {
+                'X-TBA-Auth-Key': TBA_API_KEY
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`TBA API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const teamName = data.nickname;
+        
+        teamNameCache[teamNumber] = teamName;
+        return teamName;
+    } catch (error) {
+        console.error('Error fetching team name:', error);
+        return nul
+    }
 }
+
 
 async function displayTeamName(teamNumber, elementId) {
   const element = document.getElementById(elementId);
   if (!element) return;
+
   const teamName = await fetchTeamName(teamNumber);
-  element.textContent = teamName || '';
+  element.textContent = teamName;
 }
 /*-----CHART FUNCTIONS----*/
 
