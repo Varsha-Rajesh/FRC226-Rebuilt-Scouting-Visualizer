@@ -1,6 +1,5 @@
 /*-----VARIABLES----*/
 
-// Charts
 const charts = {
   overviewStackedChart: null,
   fuelOprChart: null
@@ -697,6 +696,323 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /*-----FILE UPLOADS-----*/
 
+let eventScoutingData = [];
+let matchScheduleData = [];
+let oprData = [];
+
+const dataFileInput = document.getElementById('dataFile');
+const pitFileInput = document.getElementById('pitFile');
+const scheduleFileInput = document.getElementById('scheduleFile');
+const oprFileInput = document.getElementById('oprFile');
+
+const statusData = document.getElementById('statusData');
+const statusPit = document.getElementById('statusPit');
+const statusSchedule = document.getElementById('statusSchedule');
+const statusOPR = document.getElementById('statusOPR');
+
+const submitData = document.getElementById('submitData');
+const submitPit = document.getElementById('submitPit');
+const submitSchedule = document.getElementById('submitSchedule');
+const submitOPR = document.getElementById('submitOPR');
+
+submitData.addEventListener('click', () => {
+    handleFileUpload('dataFile', 'eventScouting', statusData);
+});
+
+submitPit.addEventListener('click', () => {
+    handleFileUpload('pitFile', 'pitScouting', statusPit);
+});
+
+submitSchedule.addEventListener('click', () => {
+    handleFileUpload('scheduleFile', 'matchSchedule', statusSchedule);
+});
+
+submitOPR.addEventListener('click', () => {
+    handleFileUpload('oprFile', 'opr', statusOPR);
+});
+
+function handleFileUpload(inputId, dataKey, statusDiv) {
+    const fileInput = document.getElementById(inputId);
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        updateStatus(statusDiv, "Please select a file.", false);
+        return;
+    }
+
+    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+        updateStatus(statusDiv, "Invalid file type. Please upload a CSV.", false);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const text = e.target.result;
+        
+        switch(dataKey) {
+            case 'eventScouting':
+                parseEventScoutingCSV(text, file.name);
+                break;
+            case 'pitScouting':
+                parsePitScoutingCSV(text, file.name);
+                break;
+            case 'matchSchedule':
+                parseMatchScheduleCSV(text, file.name);
+                break;
+            case 'opr':
+                parseOPRCSV(text, file.name);
+                break;
+        }
+        
+        localStorage.setItem(`${dataKey}CSV`, text);
+        localStorage.setItem(`${dataKey}FileName`, file.name);
+        
+        updateStatus(statusDiv, file.name, true);
+        
+        fileInput.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function parseEventScoutingCSV(csvText, fileName) {
+    const lines = csvText.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim());
+    
+    eventScoutingData = lines.slice(1).map(line => {
+        const values = line.split(",").map(v => v.trim());
+        const rowObj = {};
+        headers.forEach((header, i) => {
+            rowObj[header] = values[i];
+        });
+        return rowObj;
+    });
+    
+    console.log("Event Scouting Data loaded:", eventScoutingData);
+    updateVisualizerWithData('event', eventScoutingData);
+}
+
+function parsePitScoutingCSV(csvText, fileName) {
+    const lines = csvText.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim());
+    
+    pitScoutingData = lines.slice(1).map(line => {
+        const values = line.split(",").map(v => v.trim());
+        const rowObj = {};
+        headers.forEach((header, i) => {
+            rowObj[header] = values[i];
+        });
+        return rowObj;
+    });
+    
+    console.log("Pit Scouting Data loaded:", pitScoutingData);
+    updateVisualizerWithData('pit', pitScoutingData);
+}
+
+function parseMatchScheduleCSV(csvText, fileName) {
+    const lines = csvText.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim());
+    const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
+    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+
+    if (missingHeaders.length > 0) {
+        updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
+        matchScheduleData = [];
+        return;
+    }
+
+    matchScheduleData = lines.slice(1).map(line => {
+        const values = line.split(",").map(v => v.trim());
+        const rowObj = {};
+        headers.forEach((header, i) => {
+            rowObj[header] = values[i];
+        });
+        return rowObj;
+    });
+    
+    console.log("Match Schedule loaded:", matchScheduleData);
+    updateVisualizerWithData('schedule', matchScheduleData);
+}
+
+function parseOPRCSV(csvText, fileName) {
+    const lines = csvText.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim());
+    
+    oprData = lines.slice(1).map(line => {
+        const values = line.split(",").map(v => v.trim());
+        const rowObj = {};
+        headers.forEach((header, i) => {
+            rowObj[header] = values[i];
+        });
+        return rowObj;
+    });
+    
+    console.log("OPR Data loaded:", oprData);
+    updateVisualizerWithData('opr', oprData);
+}
+
+function deleteFile(inputId) {
+    let dataKey, statusDiv, confirmMessage;
+    
+    switch(inputId) {
+        case 'dataFile':
+            dataKey = 'eventScouting';
+            statusDiv = statusData;
+            confirmMessage = "Are you sure you want to delete the event scouting data?";
+            break;
+        case 'pitFile':
+            dataKey = 'pitScouting';
+            statusDiv = statusPit;
+            confirmMessage = "Are you sure you want to delete the pit scouting data?";
+            break;
+        case 'scheduleFile':
+            dataKey = 'matchSchedule';
+            statusDiv = statusSchedule;
+            confirmMessage = "Are you sure you want to delete the match schedule?";
+            break;
+        case 'oprFile':
+            dataKey = 'opr';
+            statusDiv = statusOPR;
+            confirmMessage = "Are you sure you want to delete the OPR data?";
+            break;
+        default:
+            return;
+    }
+    
+    if (!localStorage.getItem(`${dataKey}CSV`)) {
+        alert("No file uploaded to delete.");
+        return;
+    }
+    
+    if (confirm(confirmMessage)) {
+        if (dataKey === 'eventScouting') eventScoutingData = [];
+        if (dataKey === 'pitScouting') pitScoutingData = [];
+        if (dataKey === 'matchSchedule') matchScheduleData = [];
+        if (dataKey === 'opr') oprData = [];
+        
+        localStorage.removeItem(`${dataKey}CSV`);
+        localStorage.removeItem(`${dataKey}FileName`);
+        
+        document.getElementById(inputId).value = '';
+        
+        statusDiv.style.background = "#1a1c1f";
+        statusDiv.style.border = "2px solid #2a2d31";
+        statusDiv.style.color = "#ffffff";
+        statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
+        statusDiv.classList.remove('uploaded');
+        
+        updateVisualizerWithData(dataKey, []);
+        
+        alert("File deleted successfully!");
+    }
+}
+
+function updateStatus(statusDiv, message, success) {
+    if (success) {
+        statusDiv.style.background = "#002244";
+        statusDiv.style.border = "2px solid #1e90ff";
+        statusDiv.style.color = "#1e90ff";
+        statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
+        statusDiv.classList.add('uploaded');
+    } else {
+        statusDiv.style.background = "#440000";
+        statusDiv.style.border = "2px solid #ff4c4c";
+        statusDiv.style.color = "#ff4c4c";
+        statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
+        statusDiv.classList.remove('uploaded');
+    }
+}
+
+    function updateStatusNeutral(statusDiv, message) {
+      if (!statusDiv) return;
+      statusDiv.style.background = "#1a1c1f";
+      statusDiv.style.border = "2px solid #2a2d31";
+      statusDiv.style.color = "#ffffff";
+      statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0; color:#ccc;">${message}</p>`;
+      statusDiv.classList.remove('uploaded');
+    }
+
+
+window.addEventListener('DOMContentLoaded', () => {
+    const savedEventCSV = localStorage.getItem('eventScoutingCSV');
+    const savedEventFileName = localStorage.getItem('eventScoutingFileName');
+    if (savedEventCSV) {
+        parseEventScoutingCSV(savedEventCSV, savedEventFileName);
+        updateStatus(statusData, savedEventFileName, true);
+    }
+
+    const savedPitCSV = localStorage.getItem('pitScoutingCSV');
+    const savedPitFileName = localStorage.getItem('pitScoutingFileName');
+    if (savedPitCSV) {
+        parsePitScoutingCSV(savedPitCSV, savedPitFileName);
+        updateStatus(statusPit, savedPitFileName, true);
+    }
+
+    const savedScheduleCSV = localStorage.getItem('matchScheduleCSV');
+    const savedScheduleFileName = localStorage.getItem('matchScheduleFileName');
+    if (savedScheduleCSV) {
+        parseMatchScheduleCSV(savedScheduleCSV, savedScheduleFileName);
+        updateStatus(statusSchedule, savedScheduleFileName, true);
+    }
+
+    const savedOPRCSV = localStorage.getItem('oprCSV');
+    const savedOPRFileName = localStorage.getItem('oprFileName');
+    if (savedOPRCSV) {
+        parseOPRCSV(savedOPRCSV, savedOPRFileName);
+        updateStatus(statusOPR, savedOPRFileName, true);
+    }
+});
+
+function updateVisualizerWithData(dataType, data) {
+  try {
+    console.log(`Updating visualizer with ${dataType} data:`, data);
+
+    switch (dataType) {
+      case 'event':
+        try {
+          csvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
+          localStorage.setItem('eventScoutingCSV', csvText || '');
+        } catch (e) { console.warn('Could not serialize event data to CSV text', e); }
+
+        try { renderRankingTable(); } catch (e) { console.warn('renderRankingTable failed', e); }
+        try { updateRankingTableColumns(); } catch (e) {}
+        try { updateLatestMatchInfo(); } catch (e) {}
+        try { renderOverviewStackedChart((Array.isArray(data) ? data : parseCSV().data) || []); } catch (e) {}
+        try { renderFuelOprChart(); } catch (e) {}
+        break;
+
+      case 'pit':
+        try {
+          pitCsvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
+          localStorage.setItem('pitCsvText', pitCsvText || '');
+        } catch (e) { console.warn('Could not serialize pit data', e); }
+
+        try { loadPitScoutingData(); } catch (e) {}
+        break;
+
+      case 'schedule':
+        try {
+          scheduleCsvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
+          localStorage.setItem('scheduleCsvText', scheduleCsvText || '');
+        } catch (e) { console.warn('Could not serialize schedule data', e); }
+
+        try { generateTargetedScoutingBlocks(); } catch (e) {}
+        break;
+
+      case 'opr':
+        try {
+          oprCsvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
+          localStorage.setItem('oprCSV', oprCsvText || '');
+        } catch (e) { console.warn('Could not serialize opr data', e); }
+
+        try { renderFuelOprChart(); } catch (e) {}
+        try { renderRankingTable(); } catch (e) {}
+        break;
+    }
+  } catch (err) {
+    console.error('updateVisualizerWithData error', err);
+  }
+}
+
 function parseCSV() {
   return Papa.parse(csvText, { header: true });
 }
@@ -707,14 +1023,16 @@ async function handleDataUpload(e) {
   const statusEl = document.getElementById('statusData');
   const file = fileInput.files[0];
   if (!file || !file.name.endsWith('.csv')) {
-    statusEl.textContent = 'Please upload a valid .csv file.';
+    updateStatus(statusEl, 'Please upload a valid .csv file.', false);
     return;
   }
   const reader = new FileReader();
   reader.onload = function (evt) {
     csvText = evt.target.result;
     localStorage.setItem('csvText', csvText);
-    statusEl.textContent = 'Event CSV uploaded!';
+    localStorage.setItem('eventScoutingCSV', csvText);
+    localStorage.setItem('eventScoutingFileName', file.name);
+    updateStatus(statusEl, file.name, true);
     renderRankingTable();
     updateRankingTableColumns();
     updateLatestMatchInfo();
@@ -901,8 +1219,9 @@ async function handleOPRUpload(e) {
       }
 
       oprCsvText = text;
-      localStorage.setItem('oprCsvText', oprCsvText);
-      statusEl.textContent = `OPR CSV uploaded successfully for ${result.data.length} teams!`;
+      localStorage.setItem('oprCSV', oprCsvText);
+      localStorage.setItem('oprFileName', file.name);
+      updateStatus(statusEl, file.name, true);
       try { renderFuelOprChart(); } catch (e) { console.warn('Fuel OPR chart render failed', e); }
     } catch (err) {
       statusEl.textContent = 'Error processing file';
@@ -1024,112 +1343,54 @@ async function handlePitUpload(e) {
   };
   reader.readAsText(file);
 }
-async function deleteFile(fileType) {
-  let filename, statusId, fileInputId;
 
-  if (fileType === 'dataFile') {
-    filename = 'data.csv';
-    statusId = 'statusData';
-    fileInputId = 'dataFile';
-  } else if (fileType === 'pitFile') {
-    filename = 'pit_scouting.csv';
-    statusId = 'statusPit';
-    fileInputId = 'pitFile';
-  } else if (fileType === 'scheduleFile') {
-    filename = 'schedule.csv';
-    statusId = 'statusSchedule';
-    fileInputId = 'scheduleFile';
-  } else if (fileType === 'oprFile') {
-    filename = 'opr.csv';
-    statusId = 'statusOPR';
-    fileInputId = 'oprFile';
-  }
-
-  try {
-    if (filename) {
-      await fetch(`/uploads/${filename}`, {
-        method: 'DELETE'
-      });
+function deleteFile(inputId) {
+    let dataKey, statusDiv;
+    
+    switch(inputId) {
+        case 'dataFile':
+            dataKey = 'eventScouting';
+            statusDiv = document.getElementById('statusData');
+            break;
+        case 'pitFile':
+            dataKey = 'pitScouting';
+            statusDiv = document.getElementById('statusPit');
+            break;
+        case 'scheduleFile':
+            dataKey = 'matchSchedule';
+            statusDiv = document.getElementById('statusSchedule');
+            break;
+        case 'oprFile':
+            dataKey = 'opr';
+            statusDiv = document.getElementById('statusOPR');
+            break;
+        default:
+            return;
     }
-
-    document.getElementById(fileInputId).value = '';
-    document.getElementById(statusId).textContent = 'File deleted successfully';
-
-    if (fileType === 'dataFile') {
-      clearAllCharts();
-    } else if (fileType === 'pitFile') {
-      pitScoutingData = [];
-      pitCsvText = "";
-      localStorage.removeItem('pitCsvText');
-      document.getElementById('statusPit').textContent = "Pit CSV deleted successfully";
-      document.getElementById('pitFile').value = "";
-
-      const currentTeam = document.getElementById('teamSearch').value.trim();
-      if (currentTeam) {
-        const teamData = filterTeamData(currentTeam);
-        if (teamData.length > 0) {
-          renderTeamStatistics(teamData, []);
-        }
-      }
-
-      const comparisonTeam1 = document.getElementById('comparisonSearch1').value.trim();
-      const comparisonTeam2 = document.getElementById('comparisonSearch2').value.trim();
-
-      if (comparisonTeam1) {
-        const team1Data = filterTeamData(comparisonTeam1);
-        if (team1Data.length > 0) {
-          renderComparisonTeamStatistics(team1Data, [], 1);
-        }
-      }
-
-      if (comparisonTeam2) {
-        const team2Data = filterTeamData(comparisonTeam2);
-        if (team2Data.length > 0) {
-          renderComparisonTeamStatistics(team2Data, [], 2);
-        }
-      }
-    } else if (fileType === 'scheduleFile') {
-      scheduleCsvText = "";
-      localStorage.removeItem('scheduleCsvText');
-      document.getElementById('statusSchedule').textContent = "File successfully deleted";
-      document.getElementById('scheduleFile').value = "";
-      const strategyContent = document.getElementById('strategyContent');
-      if (strategyContent) strategyContent.innerHTML = '';
-      const targetedScoutingContainer = document.getElementById('targetedScoutingContainer');
-      if (targetedScoutingContainer) targetedScoutingContainer.innerHTML = '';
-    } else if (fileType === 'oprFile') {
-      oprCsvText = "";
-      localStorage.removeItem('oprCsvText');
-      document.getElementById('statusOPR').textContent = "OPR CSV deleted.";
-      document.getElementById('oprFile').value = "";
+    
+    if (!localStorage.getItem(`${dataKey}CSV`)) {
+        return;
     }
-  } catch (error) {
-    document.getElementById(fileInputId).value = '';
-    document.getElementById(statusId).textContent = 'File deleted successfully';
-
-    if (fileType === 'dataFile') {
-      clearAllCharts();
-    } else if (fileType === 'pitFile') {
-      pitScoutingData = [];
-      pitCsvText = "";
-      localStorage.removeItem('pitCsvText');
-      document.getElementById('statusPit').textContent = "Pit CSV deleted successfully";
-      document.getElementById('pitFile').value = "";
-    } else if (fileType === 'scheduleFile') {
-      scheduleCsvText = "";
-      localStorage.removeItem('scheduleCsvText');
-      document.getElementById('statusSchedule').textContent = "File successfully deleted";
-      document.getElementById('scheduleFile').value = "";
-      const strategyContent = document.getElementById('strategyContent');
-      if (strategyContent) strategyContent.innerHTML = '';
-      const targetedScoutingContainer = document.getElementById('targetedScoutingContainer');
-      if (targetedScoutingContainer) targetedScoutingContainer.innerHTML = '';
-    } else if (fileType === 'oprFile') {
-      oprCsvText = "";
-      localStorage.removeItem('oprCsvText');
-    }
-  }
+    
+    if (dataKey === 'eventScouting') eventScoutingData = [];
+    if (dataKey === 'pitScouting') pitScoutingData = [];
+    if (dataKey === 'matchSchedule') matchScheduleData = [];
+    if (dataKey === 'opr') oprData = [];
+    
+    localStorage.removeItem(`${dataKey}CSV`);
+    localStorage.removeItem(`${dataKey}FileName`);
+    
+    document.getElementById(inputId).value = '';
+    
+    statusDiv.style.background = "#1a1c1f";
+    statusDiv.style.border = "2px solid #2a2d31";
+    statusDiv.style.color = "#ffffff";
+    statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
+    statusDiv.classList.remove('uploaded');
+    
+    updateVisualizerWithData(dataKey, []);
 }
+
 function parseScheduleCSV() {
   const scheduleText = localStorage.getItem('scheduleCsvText');
   if (!scheduleText) return { data: [] };
@@ -1392,8 +1653,6 @@ document.getElementById('overviewSearch').addEventListener('keydown', function (
     handleOverviewSearch();
   }
 });
-
-
 
 /*-----INDIVIDUAL VIEW----*/
 
