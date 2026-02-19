@@ -716,250 +716,250 @@ const submitSchedule = document.getElementById('submitSchedule');
 const submitOPR = document.getElementById('submitOPR');
 
 submitData.addEventListener('click', () => {
-    handleFileUpload('dataFile', 'eventScouting', statusData);
+  handleFileUpload('dataFile', 'eventScouting', statusData);
 });
 
 submitPit.addEventListener('click', () => {
-    handleFileUpload('pitFile', 'pitScouting', statusPit);
+  handleFileUpload('pitFile', 'pitScouting', statusPit);
 });
 
 submitSchedule.addEventListener('click', () => {
-    handleFileUpload('scheduleFile', 'matchSchedule', statusSchedule);
+  handleFileUpload('scheduleFile', 'matchSchedule', statusSchedule);
 });
 
 submitOPR.addEventListener('click', () => {
-    handleFileUpload('oprFile', 'opr', statusOPR);
+  handleFileUpload('oprFile', 'opr', statusOPR);
 });
 
 function handleFileUpload(inputId, dataKey, statusDiv) {
-    const fileInput = document.getElementById(inputId);
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        updateStatus(statusDiv, "Please select a file.", false);
-        return;
+  const fileInput = document.getElementById(inputId);
+  const file = fileInput.files[0];
+
+  if (!file) {
+    updateStatus(statusDiv, "Please select a file.", false);
+    return;
+  }
+
+  if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+    updateStatus(statusDiv, "Invalid file type. Please upload a CSV.", false);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+
+    switch (dataKey) {
+      case 'eventScouting':
+        parseEventScoutingCSV(text, file.name);
+        break;
+      case 'pitScouting':
+        parsePitScoutingCSV(text, file.name);
+        break;
+      case 'matchSchedule':
+        parseMatchScheduleCSV(text, file.name);
+        break;
+      case 'opr':
+        parseOPRCSV(text, file.name);
+        break;
     }
 
-    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
-        updateStatus(statusDiv, "Invalid file type. Please upload a CSV.", false);
-        return;
-    }
+    localStorage.setItem(`${dataKey}CSV`, text);
+    localStorage.setItem(`${dataKey}FileName`, file.name);
 
-    const reader = new FileReader();
-    reader.onload = e => {
-        const text = e.target.result;
-        
-        switch(dataKey) {
-            case 'eventScouting':
-                parseEventScoutingCSV(text, file.name);
-                break;
-            case 'pitScouting':
-                parsePitScoutingCSV(text, file.name);
-                break;
-            case 'matchSchedule':
-                parseMatchScheduleCSV(text, file.name);
-                break;
-            case 'opr':
-                parseOPRCSV(text, file.name);
-                break;
-        }
-        
-        localStorage.setItem(`${dataKey}CSV`, text);
-        localStorage.setItem(`${dataKey}FileName`, file.name);
-        
-        updateStatus(statusDiv, file.name, true);
-        
-        fileInput.value = '';
-    };
-    reader.readAsText(file);
+    updateStatus(statusDiv, file.name, true);
+
+    fileInput.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function parseEventScoutingCSV(csvText, fileName) {
-    const lines = csvText.trim().split("\n");
-    const headers = lines[0].split(",").map(h => h.trim());
-    
-    eventScoutingData = lines.slice(1).map(line => {
-        const values = line.split(",").map(v => v.trim());
-        const rowObj = {};
-        headers.forEach((header, i) => {
-            rowObj[header] = values[i];
-        });
-        return rowObj;
+  const lines = csvText.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.trim());
+
+  eventScoutingData = lines.slice(1).map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const rowObj = {};
+    headers.forEach((header, i) => {
+      rowObj[header] = values[i];
     });
-    
-    console.log("Event Scouting Data loaded:", eventScoutingData);
-    updateVisualizerWithData('event', eventScoutingData);
+    return rowObj;
+  });
+
+  console.log("Event Scouting Data loaded:", eventScoutingData);
+  updateVisualizerWithData('event', eventScoutingData);
 }
 
 function parsePitScoutingCSV(csvText, fileName) {
-    const lines = csvText.trim().split("\n");
-    const headers = lines[0].split(",").map(h => h.trim());
-    
-    pitScoutingData = lines.slice(1).map(line => {
-        const values = line.split(",").map(v => v.trim());
-        const rowObj = {};
-        headers.forEach((header, i) => {
-            rowObj[header] = values[i];
-        });
-        return rowObj;
+  const lines = csvText.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.trim());
+
+  pitScoutingData = lines.slice(1).map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const rowObj = {};
+    headers.forEach((header, i) => {
+      rowObj[header] = values[i];
     });
-    
-    console.log("Pit Scouting Data loaded:", pitScoutingData);
-    updateVisualizerWithData('pit', pitScoutingData);
+    return rowObj;
+  });
+
+  console.log("Pit Scouting Data loaded:", pitScoutingData);
+  updateVisualizerWithData('pit', pitScoutingData);
 }
 
 function parseMatchScheduleCSV(csvText, fileName) {
-    const lines = csvText.trim().split("\n");
-    const headers = lines[0].split(",").map(h => h.trim());
-    const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+  const lines = csvText.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.trim());
+  const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
+  const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
-    if (missingHeaders.length > 0) {
-        updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
-        matchScheduleData = [];
-        return;
-    }
+  if (missingHeaders.length > 0) {
+    updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
+    matchScheduleData = [];
+    return;
+  }
 
-    matchScheduleData = lines.slice(1).map(line => {
-        const values = line.split(",").map(v => v.trim());
-        const rowObj = {};
-        headers.forEach((header, i) => {
-            rowObj[header] = values[i];
-        });
-        return rowObj;
+  matchScheduleData = lines.slice(1).map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const rowObj = {};
+    headers.forEach((header, i) => {
+      rowObj[header] = values[i];
     });
-    
-    console.log("Match Schedule loaded:", matchScheduleData);
-    updateVisualizerWithData('schedule', matchScheduleData);
+    return rowObj;
+  });
+
+  console.log("Match Schedule loaded:", matchScheduleData);
+  updateVisualizerWithData('schedule', matchScheduleData);
 }
 
 function parseOPRCSV(csvText, fileName) {
-    const lines = csvText.trim().split("\n");
-    const headers = lines[0].split(",").map(h => h.trim());
-    
-    oprData = lines.slice(1).map(line => {
-        const values = line.split(",").map(v => v.trim());
-        const rowObj = {};
-        headers.forEach((header, i) => {
-            rowObj[header] = values[i];
-        });
-        return rowObj;
+  const lines = csvText.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.trim());
+
+  oprData = lines.slice(1).map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const rowObj = {};
+    headers.forEach((header, i) => {
+      rowObj[header] = values[i];
     });
-    
-    console.log("OPR Data loaded:", oprData);
-    updateVisualizerWithData('opr', oprData);
+    return rowObj;
+  });
+
+  console.log("OPR Data loaded:", oprData);
+  updateVisualizerWithData('opr', oprData);
 }
 
 function deleteFile(inputId) {
-    let dataKey, statusDiv, confirmMessage;
-    
-    switch(inputId) {
-        case 'dataFile':
-            dataKey = 'eventScouting';
-            statusDiv = statusData;
-            confirmMessage = "Are you sure you want to delete the event scouting data?";
-            break;
-        case 'pitFile':
-            dataKey = 'pitScouting';
-            statusDiv = statusPit;
-            confirmMessage = "Are you sure you want to delete the pit scouting data?";
-            break;
-        case 'scheduleFile':
-            dataKey = 'matchSchedule';
-            statusDiv = statusSchedule;
-            confirmMessage = "Are you sure you want to delete the match schedule?";
-            break;
-        case 'oprFile':
-            dataKey = 'opr';
-            statusDiv = statusOPR;
-            confirmMessage = "Are you sure you want to delete the OPR data?";
-            break;
-        default:
-            return;
-    }
-    
-    if (!localStorage.getItem(`${dataKey}CSV`)) {
-        alert("No file uploaded to delete.");
-        return;
-    }
-    
-    if (confirm(confirmMessage)) {
-        if (dataKey === 'eventScouting') eventScoutingData = [];
-        if (dataKey === 'pitScouting') pitScoutingData = [];
-        if (dataKey === 'matchSchedule') matchScheduleData = [];
-        if (dataKey === 'opr') oprData = [];
-        
-        localStorage.removeItem(`${dataKey}CSV`);
-        localStorage.removeItem(`${dataKey}FileName`);
-        
-        document.getElementById(inputId).value = '';
-        
-        statusDiv.style.background = "#1a1c1f";
-        statusDiv.style.border = "2px solid #2a2d31";
-        statusDiv.style.color = "#ffffff";
-        statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
-        statusDiv.classList.remove('uploaded');
-        
-        updateVisualizerWithData(dataKey, []);
-        
-        alert("File deleted successfully!");
-    }
+  let dataKey, statusDiv, confirmMessage;
+
+  switch (inputId) {
+    case 'dataFile':
+      dataKey = 'eventScouting';
+      statusDiv = statusData;
+      confirmMessage = "Are you sure you want to delete the event scouting data?";
+      break;
+    case 'pitFile':
+      dataKey = 'pitScouting';
+      statusDiv = statusPit;
+      confirmMessage = "Are you sure you want to delete the pit scouting data?";
+      break;
+    case 'scheduleFile':
+      dataKey = 'matchSchedule';
+      statusDiv = statusSchedule;
+      confirmMessage = "Are you sure you want to delete the match schedule?";
+      break;
+    case 'oprFile':
+      dataKey = 'opr';
+      statusDiv = statusOPR;
+      confirmMessage = "Are you sure you want to delete the OPR data?";
+      break;
+    default:
+      return;
+  }
+
+  if (!localStorage.getItem(`${dataKey}CSV`)) {
+    alert("No file uploaded to delete.");
+    return;
+  }
+
+  if (confirm(confirmMessage)) {
+    if (dataKey === 'eventScouting') eventScoutingData = [];
+    if (dataKey === 'pitScouting') pitScoutingData = [];
+    if (dataKey === 'matchSchedule') matchScheduleData = [];
+    if (dataKey === 'opr') oprData = [];
+
+    localStorage.removeItem(`${dataKey}CSV`);
+    localStorage.removeItem(`${dataKey}FileName`);
+
+    document.getElementById(inputId).value = '';
+
+    statusDiv.style.background = "#1a1c1f";
+    statusDiv.style.border = "2px solid #2a2d31";
+    statusDiv.style.color = "#ffffff";
+    statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
+    statusDiv.classList.remove('uploaded');
+
+    updateVisualizerWithData(dataKey, []);
+
+    alert("File deleted successfully!");
+  }
 }
 
 function updateStatus(statusDiv, message, success) {
-    if (success) {
-        statusDiv.style.background = "#002244";
-        statusDiv.style.border = "2px solid #1e90ff";
-        statusDiv.style.color = "#1e90ff";
-        statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
-        statusDiv.classList.add('uploaded');
-    } else {
-        statusDiv.style.background = "#440000";
-        statusDiv.style.border = "2px solid #ff4c4c";
-        statusDiv.style.color = "#ff4c4c";
-        statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
-        statusDiv.classList.remove('uploaded');
-    }
+  if (success) {
+    statusDiv.style.background = "#002244";
+    statusDiv.style.border = "2px solid #1e90ff";
+    statusDiv.style.color = "#1e90ff";
+    statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
+    statusDiv.classList.add('uploaded');
+  } else {
+    statusDiv.style.background = "#440000";
+    statusDiv.style.border = "2px solid #ff4c4c";
+    statusDiv.style.color = "#ff4c4c";
+    statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0;">${message}</p>`;
+    statusDiv.classList.remove('uploaded');
+  }
 }
 
-    function updateStatusNeutral(statusDiv, message) {
-      if (!statusDiv) return;
-      statusDiv.style.background = "#1a1c1f";
-      statusDiv.style.border = "2px solid #2a2d31";
-      statusDiv.style.color = "#ffffff";
-      statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0; color:#ccc;">${message}</p>`;
-      statusDiv.classList.remove('uploaded');
-    }
+function updateStatusNeutral(statusDiv, message) {
+  if (!statusDiv) return;
+  statusDiv.style.background = "#1a1c1f";
+  statusDiv.style.border = "2px solid #2a2d31";
+  statusDiv.style.color = "#ffffff";
+  statusDiv.innerHTML = `<p style="text-align:center; font-size:1rem; margin:0; color:#ccc;">${message}</p>`;
+  statusDiv.classList.remove('uploaded');
+}
 
 
 window.addEventListener('DOMContentLoaded', () => {
-    const savedEventCSV = localStorage.getItem('eventScoutingCSV');
-    const savedEventFileName = localStorage.getItem('eventScoutingFileName');
-    if (savedEventCSV) {
-        parseEventScoutingCSV(savedEventCSV, savedEventFileName);
-        updateStatus(statusData, savedEventFileName, true);
-    }
+  const savedEventCSV = localStorage.getItem('eventScoutingCSV');
+  const savedEventFileName = localStorage.getItem('eventScoutingFileName');
+  if (savedEventCSV) {
+    parseEventScoutingCSV(savedEventCSV, savedEventFileName);
+    updateStatus(statusData, savedEventFileName, true);
+  }
 
-    const savedPitCSV = localStorage.getItem('pitScoutingCSV');
-    const savedPitFileName = localStorage.getItem('pitScoutingFileName');
-    if (savedPitCSV) {
-        parsePitScoutingCSV(savedPitCSV, savedPitFileName);
-        updateStatus(statusPit, savedPitFileName, true);
-    }
+  const savedPitCSV = localStorage.getItem('pitScoutingCSV');
+  const savedPitFileName = localStorage.getItem('pitScoutingFileName');
+  if (savedPitCSV) {
+    parsePitScoutingCSV(savedPitCSV, savedPitFileName);
+    updateStatus(statusPit, savedPitFileName, true);
+  }
 
-    const savedScheduleCSV = localStorage.getItem('matchScheduleCSV');
-    const savedScheduleFileName = localStorage.getItem('matchScheduleFileName');
-    if (savedScheduleCSV) {
-        parseMatchScheduleCSV(savedScheduleCSV, savedScheduleFileName);
-        updateStatus(statusSchedule, savedScheduleFileName, true);
-    }
+  const savedScheduleCSV = localStorage.getItem('matchScheduleCSV');
+  const savedScheduleFileName = localStorage.getItem('matchScheduleFileName');
+  if (savedScheduleCSV) {
+    parseMatchScheduleCSV(savedScheduleCSV, savedScheduleFileName);
+    updateStatus(statusSchedule, savedScheduleFileName, true);
+  }
 
-    const savedOPRCSV = localStorage.getItem('oprCSV');
-    const savedOPRFileName = localStorage.getItem('oprFileName');
-    if (savedOPRCSV) {
-        parseOPRCSV(savedOPRCSV, savedOPRFileName);
-        updateStatus(statusOPR, savedOPRFileName, true);
-    }
+  const savedOPRCSV = localStorage.getItem('oprCSV');
+  const savedOPRFileName = localStorage.getItem('oprFileName');
+  if (savedOPRCSV) {
+    parseOPRCSV(savedOPRCSV, savedOPRFileName);
+    updateStatus(statusOPR, savedOPRFileName, true);
+  }
 });
 
 function updateVisualizerWithData(dataType, data) {
@@ -974,10 +974,10 @@ function updateVisualizerWithData(dataType, data) {
         } catch (e) { console.warn('Could not serialize event data to CSV text', e); }
 
         try { renderRankingTable(); } catch (e) { console.warn('renderRankingTable failed', e); }
-        try { updateRankingTableColumns(); } catch (e) {}
-        try { updateLatestMatchInfo(); } catch (e) {}
-        try { renderOverviewStackedChart((Array.isArray(data) ? data : parseCSV().data) || []); } catch (e) {}
-        try { renderFuelOprChart(); } catch (e) {}
+        try { updateRankingTableColumns(); } catch (e) { }
+        try { updateLatestMatchInfo(); } catch (e) { }
+        try { renderOverviewStackedChart((Array.isArray(data) ? data : parseCSV().data) || []); } catch (e) { }
+        try { renderFuelOprChart(); } catch (e) { }
         break;
 
       case 'pit':
@@ -986,7 +986,7 @@ function updateVisualizerWithData(dataType, data) {
           localStorage.setItem('pitCsvText', pitCsvText || '');
         } catch (e) { console.warn('Could not serialize pit data', e); }
 
-        try { loadPitScoutingData(); } catch (e) {}
+        try { loadPitScoutingData(); } catch (e) { }
         break;
 
       case 'schedule':
@@ -995,7 +995,7 @@ function updateVisualizerWithData(dataType, data) {
           localStorage.setItem('scheduleCsvText', scheduleCsvText || '');
         } catch (e) { console.warn('Could not serialize schedule data', e); }
 
-        try { generateTargetedScoutingBlocks(); } catch (e) {}
+        try { generateTargetedScoutingBlocks(); } catch (e) { }
         break;
 
       case 'opr':
@@ -1004,8 +1004,8 @@ function updateVisualizerWithData(dataType, data) {
           localStorage.setItem('oprCSV', oprCsvText || '');
         } catch (e) { console.warn('Could not serialize opr data', e); }
 
-        try { renderFuelOprChart(); } catch (e) {}
-        try { renderRankingTable(); } catch (e) {}
+        try { renderFuelOprChart(); } catch (e) { }
+        try { renderRankingTable(); } catch (e) { }
         break;
     }
   } catch (err) {
@@ -1345,50 +1345,50 @@ async function handlePitUpload(e) {
 }
 
 function deleteFile(inputId) {
-    let dataKey, statusDiv;
-    
-    switch(inputId) {
-        case 'dataFile':
-            dataKey = 'eventScouting';
-            statusDiv = document.getElementById('statusData');
-            break;
-        case 'pitFile':
-            dataKey = 'pitScouting';
-            statusDiv = document.getElementById('statusPit');
-            break;
-        case 'scheduleFile':
-            dataKey = 'matchSchedule';
-            statusDiv = document.getElementById('statusSchedule');
-            break;
-        case 'oprFile':
-            dataKey = 'opr';
-            statusDiv = document.getElementById('statusOPR');
-            break;
-        default:
-            return;
-    }
-    
-    if (!localStorage.getItem(`${dataKey}CSV`)) {
-        return;
-    }
-    
-    if (dataKey === 'eventScouting') eventScoutingData = [];
-    if (dataKey === 'pitScouting') pitScoutingData = [];
-    if (dataKey === 'matchSchedule') matchScheduleData = [];
-    if (dataKey === 'opr') oprData = [];
-    
-    localStorage.removeItem(`${dataKey}CSV`);
-    localStorage.removeItem(`${dataKey}FileName`);
-    
-    document.getElementById(inputId).value = '';
-    
-    statusDiv.style.background = "#1a1c1f";
-    statusDiv.style.border = "2px solid #2a2d31";
-    statusDiv.style.color = "#ffffff";
-    statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
-    statusDiv.classList.remove('uploaded');
-    
-    updateVisualizerWithData(dataKey, []);
+  let dataKey, statusDiv;
+
+  switch (inputId) {
+    case 'dataFile':
+      dataKey = 'eventScouting';
+      statusDiv = document.getElementById('statusData');
+      break;
+    case 'pitFile':
+      dataKey = 'pitScouting';
+      statusDiv = document.getElementById('statusPit');
+      break;
+    case 'scheduleFile':
+      dataKey = 'matchSchedule';
+      statusDiv = document.getElementById('statusSchedule');
+      break;
+    case 'oprFile':
+      dataKey = 'opr';
+      statusDiv = document.getElementById('statusOPR');
+      break;
+    default:
+      return;
+  }
+
+  if (!localStorage.getItem(`${dataKey}CSV`)) {
+    return;
+  }
+
+  if (dataKey === 'eventScouting') eventScoutingData = [];
+  if (dataKey === 'pitScouting') pitScoutingData = [];
+  if (dataKey === 'matchSchedule') matchScheduleData = [];
+  if (dataKey === 'opr') oprData = [];
+
+  localStorage.removeItem(`${dataKey}CSV`);
+  localStorage.removeItem(`${dataKey}FileName`);
+
+  document.getElementById(inputId).value = '';
+
+  statusDiv.style.background = "#1a1c1f";
+  statusDiv.style.border = "2px solid #2a2d31";
+  statusDiv.style.color = "#ffffff";
+  statusDiv.innerHTML = `<p style="text-align: center; font-size: 1rem; color: #ccc;">No file uploaded.</p>`;
+  statusDiv.classList.remove('uploaded');
+
+  updateVisualizerWithData(dataKey, []);
 }
 
 function parseScheduleCSV() {
@@ -1406,7 +1406,40 @@ function parseScheduleCSV() {
   }
 }
 
+/*-----TBA-----*/
+let teamNameCache = {};
 
+async function fetchTeamName(teamNumber) {
+  if (!teamNumber) return null;
+  if (teamNameCache[teamNumber]) return teamNameCache[teamNumber];
+
+  if (!navigator.onLine) {
+    console.log('Offline: Skipping team name lookup');
+    return null;
+  }
+
+  try {
+    const resp = await fetch(`/api/tba/team/${teamNumber}`);
+    if (!resp.ok) {
+      console.warn('TBA proxy returned', resp.status);
+      return null;
+    }
+    const data = await resp.json();
+    const teamName = data && data.nickname ? data.nickname : null;
+    teamNameCache[teamNumber] = teamName;
+    return teamName;
+  } catch (err) {
+    console.error('Error fetching team name from proxy:', err);
+    return null;
+  }
+}
+
+async function displayTeamName(teamNumber, elementId) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  const teamName = await fetchTeamName(teamNumber);
+  element.textContent = teamName || '';
+}
 /*-----CHART FUNCTIONS----*/
 
 function destroyChart(chartName) {
@@ -1732,6 +1765,7 @@ function searchTeam() {
   console.log("=== searchTeam() called ===");
 
   const teamNumber = document.getElementById('teamSearch').value.trim();
+  displayTeamName(teamNumber, 'teamNicknameDisplay');
   console.log("Team number entered:", teamNumber);
 
   if (!teamNumber) {
@@ -2581,7 +2615,7 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
   }
 
   const epa = Math.round((avgTotalPoints + totalOPR) * 10) / 10;
-  
+
   const shootingAccuracy = (() => {
     const accuracyVals = teamData
       .map(row => parseFloat(row['Shooting Accuracy']))
@@ -2621,7 +2655,7 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
   const robotDiedRate = teamData.length ? ((diedCount / teamData.length) * 100).toFixed(1) : '0.0';
   document.getElementById(`comparisonDiedRate${column}`).textContent = robotDiedRate;
 }
-function searchComparison(column) {
+async function searchComparison(column) {
 
   if (!window.comparisonTeamData) {
     window.comparisonTeamData = { 1: [], 2: [] };
@@ -2649,6 +2683,16 @@ function searchComparison(column) {
     return;
   }
 
+  const nicknameElement = document.getElementById(`comparisonNickname${column}`);
+  if (nicknameElement) {
+    try {
+      const teamName = await fetchTeamName(teamNumber);
+      nicknameElement.textContent = teamName || `Team ${teamNumber}`;
+    } catch (err) {
+      console.warn('Could not fetch team name for comparison view', err);
+      nicknameElement.textContent = `Team ${teamNumber}`;
+    }
+  }
   if (!csvText || csvText.length === 0) {
     console.error("No CSV data loaded!");
     alert("Please upload event data CSV first");
@@ -3930,6 +3974,8 @@ function handleOverviewSearch() {
 
   if (!input) return;
 
+  displayTeamName(input, 'overviewTeamNicknameDisplay');
+
   highlightedOverviewTeam = input;
   const parsedData = parseCSV();
   renderOverviewStackedChart(parsedData.data);
@@ -4203,41 +4249,41 @@ function applyFilters() {
     });
   }
 
-const allTeams = Object.entries(teamMap).map(([team, data]) => {
-  const avgPoints = data.matchCount > 0 ? (data.epaTotal / data.matchCount) : 0;
-  
-  const opr = oprData[team] || 0;
-  
-  const epa = Math.round((avgPoints + opr) * 10) / 10;
+  const allTeams = Object.entries(teamMap).map(([team, data]) => {
+    const avgPoints = data.matchCount > 0 ? (data.epaTotal / data.matchCount) : 0;
 
-  const flags = {
-    autoClimb: data.hasAutoClimb,
-    autoCenter: data.hasAutoCenter,
-    autoDepot: data.hasAutoDepot,
-    autoOutpost: data.hasAutoOutpost,
+    const opr = oprData[team] || 0;
 
-    climbLevel1: data.hasClimbLevel1,
-    climbLevel2: data.hasClimbLevel2,
-    climbLevel3: data.hasClimbLevel3,
+    const epa = Math.round((avgPoints + opr) * 10) / 10;
 
-    climbPositionCenter: data.hasClimbPositionCenter,
-    climbPositionDepot: data.hasClimbPositionDepot,
-    climbPositionOutpost: data.hasClimbPositionOutpost,
+    const flags = {
+      autoClimb: data.hasAutoClimb,
+      autoCenter: data.hasAutoCenter,
+      autoDepot: data.hasAutoDepot,
+      autoOutpost: data.hasAutoOutpost,
 
-    swerve: data.hasSwerve,
-    trench: data.hasTrench,
-    shootOnFly: data.hasShootOnFly,
-    groundIntake: data.hasGroundIntake
-  };
+      climbLevel1: data.hasClimbLevel1,
+      climbLevel2: data.hasClimbLevel2,
+      climbLevel3: data.hasClimbLevel3,
 
-  return {
-    team,
-    avgEPA: epa, 
-    avgOPR: opr,
-    flags,
-    isHidden: hiddenTeams.includes(team)
-  };
-});
+      climbPositionCenter: data.hasClimbPositionCenter,
+      climbPositionDepot: data.hasClimbPositionDepot,
+      climbPositionOutpost: data.hasClimbPositionOutpost,
+
+      swerve: data.hasSwerve,
+      trench: data.hasTrench,
+      shootOnFly: data.hasShootOnFly,
+      groundIntake: data.hasGroundIntake
+    };
+
+    return {
+      team,
+      avgEPA: epa,
+      avgOPR: opr,
+      flags,
+      isHidden: hiddenTeams.includes(team)
+    };
+  });
 
   const passed = allTeams.filter(team => {
     const selectedAutoFilters = selectedFilters.filter(f =>
@@ -4285,13 +4331,13 @@ const allTeams = Object.entries(teamMap).map(([team, data]) => {
   let sortFn;
   switch (sortBy) {
     case 'EPA':
-      sortFn = (a, b) => b.avgEPA - a.avgEPA; 
+      sortFn = (a, b) => b.avgEPA - a.avgEPA;
       break;
     case 'avgOPR':
       sortFn = (a, b) => b.avgOPR - a.avgOPR;
       break;
     default:
-      sortFn = (a, b) => b.avgEPA - a.avgEPA; 
+      sortFn = (a, b) => b.avgEPA - a.avgEPA;
   }
 
   filteredIn.sort(sortFn);
@@ -4370,7 +4416,7 @@ function renderTeamGroup(teams, container, sortBy) {
     let metricValue, metricLabel;
     switch (sortBy) {
       case 'EPA':
-        metricValue = team.avgEPA; 
+        metricValue = team.avgEPA;
         metricLabel = 'Avg. EPA';
         break;
       case 'avgOPR':
