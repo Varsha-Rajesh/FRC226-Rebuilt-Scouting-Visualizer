@@ -13,7 +13,7 @@ let highlightedOverviewTeam = null;
 let csvText = localStorage.getItem('csvText') || "";
 let pitCsvText = localStorage.getItem('pitCsvText') || "";
 let scheduleCsvText = localStorage.getItem('scheduleCsvText') || "";
-let oprCsvText = localStorage.getItem('oprCsvText') || "";
+let oprCsvText = localStorage.getItem('oprCsvText') || localStorage.getItem('oprCSV') || "";
 let currentTeamData = [];
 let teleClimbPositionFilterValue = 'all';
 let pitScoutingData = [];
@@ -775,79 +775,136 @@ function handleFileUpload(inputId, dataKey, statusDiv) {
 }
 
 function parseEventScoutingCSV(csvText, fileName) {
-  const lines = csvText.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim());
-
-  eventScoutingData = lines.slice(1).map(line => {
-    const values = line.split(",").map(v => v.trim());
-    const rowObj = {};
-    headers.forEach((header, i) => {
-      rowObj[header] = values[i];
+  try {
+    const result = Papa.parse(csvText, { 
+      header: true, 
+      skipEmptyLines: true,
+      transform: function(value) {
+        if (typeof value === 'string') {
+          return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
+        }
+        return value;
+      }
     });
-    return rowObj;
-  });
-
-  console.log("Event Scouting Data loaded:", eventScoutingData);
-  updateVisualizerWithData('event', eventScoutingData);
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn('Papa Parse warnings:', result.errors);
+    }
+    
+    eventScoutingData = result.data;
+    console.log(`Event Scouting Data loaded: ${eventScoutingData.length} rows`);
+    updateVisualizerWithData('event', eventScoutingData);
+  } catch (error) {
+    console.error('Error parsing event scouting CSV:', error);
+    eventScoutingData = [];
+  }
 }
 
 function parsePitScoutingCSV(csvText, fileName) {
-  const lines = csvText.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim());
-
-  pitScoutingData = lines.slice(1).map(line => {
-    const values = line.split(",").map(v => v.trim());
-    const rowObj = {};
-    headers.forEach((header, i) => {
-      rowObj[header] = values[i];
+  try {
+    const result = Papa.parse(csvText, { 
+      header: true, 
+      skipEmptyLines: true,
+      transform: function(value) {
+        if (typeof value === 'string') {
+          return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
+        }
+        return value;
+      }
     });
-    return rowObj;
-  });
-
-  console.log("Pit Scouting Data loaded:", pitScoutingData);
-  updateVisualizerWithData('pit', pitScoutingData);
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn('Papa Parse warnings:', result.errors);
+    }
+    
+    pitScoutingData = result.data.filter(row => {
+      return row['Team Number'] && 
+             row['Trench'] !== undefined && 
+             row['Ground Intake'] !== undefined && 
+             row['Shoot on Fly'] !== undefined;
+    });
+    
+    console.log(`Pit Scouting Data loaded: ${pitScoutingData.length} teams`);
+    updateVisualizerWithData('pit', pitScoutingData);
+  } catch (error) {
+    console.error('Error parsing pit scouting CSV:', error);
+    pitScoutingData = [];
+  }
 }
 
 function parseMatchScheduleCSV(csvText, fileName) {
-  const lines = csvText.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim());
-  const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
-  const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-
-  if (missingHeaders.length > 0) {
-    updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
-    matchScheduleData = [];
-    return;
-  }
-
-  matchScheduleData = lines.slice(1).map(line => {
-    const values = line.split(",").map(v => v.trim());
-    const rowObj = {};
-    headers.forEach((header, i) => {
-      rowObj[header] = values[i];
+  try {
+    const result = Papa.parse(csvText, { 
+      header: true, 
+      skipEmptyLines: true,
+      transform: function(value) {
+        if (typeof value === 'string') {
+          return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
+        }
+        return value;
+      }
     });
-    return rowObj;
-  });
-
-  console.log("Match Schedule loaded:", matchScheduleData);
-  updateVisualizerWithData('schedule', matchScheduleData);
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn('Papa Parse warnings:', result.errors);
+    }
+    
+    const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
+    const missingHeaders = requiredHeaders.filter(h => !result.meta.fields.includes(h));
+    
+    if (missingHeaders.length > 0) {
+      updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
+      matchScheduleData = [];
+      return;
+    }
+    
+    matchScheduleData = result.data;
+    console.log(`Match Schedule loaded: ${matchScheduleData.length} matches`);
+    updateVisualizerWithData('schedule', matchScheduleData);
+  } catch (error) {
+    console.error('Error parsing match schedule CSV:', error);
+    matchScheduleData = [];
+  }
 }
 
 function parseOPRCSV(csvText, fileName) {
-  const lines = csvText.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim());
-
-  oprData = lines.slice(1).map(line => {
-    const values = line.split(",").map(v => v.trim());
-    const rowObj = {};
-    headers.forEach((header, i) => {
-      rowObj[header] = values[i];
+  try {
+    const result = Papa.parse(csvText, { 
+      header: true, 
+      skipEmptyLines: true,
+      transform: function(value) {
+        if (typeof value === 'string') {
+          const cleaned = value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
+          if (!isNaN(parseFloat(cleaned)) && isFinite(cleaned)) {
+            return cleaned;
+          }
+          return cleaned;
+        }
+        return value;
+      }
     });
-    return rowObj;
-  });
-
-  console.log("OPR Data loaded:", oprData);
-  updateVisualizerWithData('opr', oprData);
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn('Papa Parse warnings:', result.errors);
+    }
+    
+    const firstRow = result.data[0] || {};
+    const hasTeamNumber = firstRow.hasOwnProperty('Team Number');
+    const hasAutoOPR = firstRow.hasOwnProperty('Auto OPR');
+    const hasTeleOPR = firstRow.hasOwnProperty('Tele OPR');
+    const hasTotalOPR = firstRow.hasOwnProperty('Total OPR');
+    
+    if (!hasTeamNumber || !hasTeleOPR || !hasAutoOPR || !hasTotalOPR) {
+      console.warn('OPR CSV missing required headers');
+    }
+    
+    oprData = result.data;
+    console.log(`OPR Data loaded: ${oprData.length} teams`);
+    updateVisualizerWithData('opr', oprData);
+  } catch (error) {
+    console.error('Error parsing OPR CSV:', error);
+    oprData = [];
+  }
 }
 
 function deleteFile(inputId) {
@@ -954,7 +1011,7 @@ window.addEventListener('DOMContentLoaded', () => {
     updateStatus(statusSchedule, savedScheduleFileName, true);
   }
 
-  const savedOPRCSV = localStorage.getItem('oprCSV');
+  const savedOPRCSV = localStorage.getItem('oprCsvText') || localStorage.getItem('oprCSV');
   const savedOPRFileName = localStorage.getItem('oprFileName');
   if (savedOPRCSV) {
     parseOPRCSV(savedOPRCSV, savedOPRFileName);
@@ -1001,11 +1058,12 @@ function updateVisualizerWithData(dataType, data) {
       case 'opr':
         try {
           oprCsvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
-          localStorage.setItem('oprCSV', oprCsvText || '');
+          localStorage.setItem('oprCsvText', oprCsvText || '');
         } catch (e) { console.warn('Could not serialize opr data', e); }
 
         try { renderFuelOprChart(); } catch (e) { }
         try { renderRankingTable(); } catch (e) { }
+        try { updateOverviewCharts(); } catch (e) { }
         break;
     }
   } catch (err) {
@@ -1014,7 +1072,21 @@ function updateVisualizerWithData(dataType, data) {
 }
 
 function parseCSV() {
-  return Papa.parse(csvText, { header: true });
+  if (!csvText) return { data: [], meta: { fields: [] } };
+  try {
+    return Papa.parse(csvText, { 
+      header: true,
+      transform: function(value) {
+        if (typeof value === 'string') {
+          return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
+        }
+        return value;
+      }
+    });
+  } catch (error) {
+    console.error('Error in parseCSV:', error);
+    return { data: [], meta: { fields: [] } };
+  }
 }
 
 async function handleDataUpload(e) {
@@ -1219,10 +1291,12 @@ async function handleOPRUpload(e) {
       }
 
       oprCsvText = text;
-      localStorage.setItem('oprCSV', oprCsvText);
+      localStorage.setItem('oprCsvText', oprCsvText);
       localStorage.setItem('oprFileName', file.name);
       updateStatus(statusEl, file.name, true);
       try { renderFuelOprChart(); } catch (e) { console.warn('Fuel OPR chart render failed', e); }
+      try { renderRankingTable(); } catch (e) { console.warn('Ranking table refresh failed', e); }
+      try { updateOverviewCharts(); } catch (e) { console.warn('Overview charts refresh failed', e); }
     } catch (err) {
       statusEl.textContent = 'Error processing file';
       console.error(err);
@@ -2517,23 +2591,43 @@ function renderAutoPaths(teamData) {
     const matchNum = row['Match'] || row['Match Number'];
     if (!matchNum) return;
 
-    const travelString = (row['Travel String'] || '').toString().trim();
-    const fuelString = (row['Fuel Collection String'] || '').toString().trim();
+    console.log(`Row for match ${matchNum}:`, row);
 
-    if (!travelString && !fuelString) return;
+    const travelString = row['Travel String'];
+    const fuelString = row['Fuel Collection String'];
+
+    const hasTravel = travelString && String(travelString).trim() !== '' && String(travelString).trim() !== '-';
+    const hasFuel = fuelString && String(fuelString).trim() !== '' && String(fuelString).trim() !== '-';
+
+    if (!hasTravel && !hasFuel) {
+      pathEntries.push(`
+        <div style="margin-bottom: 16px; font-size: 18px; line-height: 1.5;">
+          <strong style="color: white; font-size: 15px;">Q${matchNum}:</strong> 
+          <span style="color: #ddd;">N/A</span>
+        </div>
+      `);
+      return;
+    }
+
+    const travelText = travelString ? String(travelString).trim() : '';
+    const fuelText = fuelString ? String(fuelString).trim() : '';
 
     let sentence = '';
 
-    if (travelString && fuelString) {
-      sentence = `${travelString} and ${fuelString}`;
-    } else if (travelString) {
-      sentence = travelString;
-    } else if (fuelString) {
-      sentence = fuelString.charAt(0).toUpperCase() + fuelString.slice(1);
+    if (travelText && fuelText) {
+      sentence = travelText + ' and ' + fuelText;
+    } else if (travelText) {
+      sentence = travelText;
+    } else if (fuelText) {
+      sentence = fuelText;
     }
 
-    if (sentence && !/[.!?]$/.test(sentence)) {
-      sentence = sentence + '.';
+    if (sentence) {
+      sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+      
+      if (!sentence.endsWith('.')) {
+        sentence += '.';
+      }
     }
 
     if (sentence) {
@@ -2553,7 +2647,6 @@ function renderAutoPaths(teamData) {
 
   container.innerHTML = pathEntries.join('');
 }
-
 
 function escapeHtml(text) {
   return text
@@ -2764,10 +2857,9 @@ async function searchComparison(column) {
   document.getElementById(`comparisonAutoPathFilter${column}`).value = 'all';
   document.getElementById(`comparisonAutoClimbFilter${column}`).value = 'all';
 }
+
 function displayAutoPaths(column) {
-
   const container = document.getElementById(`comparisonAutoPaths${column}`);
-
   if (!container) {
     console.error(`Container comparisonAutoPaths${column} not found`);
     return;
@@ -2782,7 +2874,6 @@ function displayAutoPaths(column) {
   }
 
   const teamData = window.comparisonTeamData[column];
-
   if (!teamData || teamData.length === 0) {
     container.innerHTML = '<p style="color: #aaa; margin: 0;">No auto path data</p>';
     return;
@@ -2818,19 +2909,35 @@ function displayAutoPaths(column) {
     const travelString = (row['Travel String'] || '').toString().trim();
     const fuelString = (row['Fuel Collection String'] || '').toString().trim();
 
-    if (!travelString && !fuelString) return;
+    const hasTravel = travelString && travelString !== '' && travelString !== '-';
+    const hasFuel = fuelString && fuelString !== '' && fuelString !== '-';
+
+    if (!hasTravel && !hasFuel) {
+      pathEntries.push(`
+        <div style="margin-bottom: 16px; font-size: 18px; line-height: 1.5;">
+          <strong style="color: white; font-size: 15px;">Q${matchNum}:</strong> 
+          <span style="color: white;">N/A</span>
+        </div>
+      `);
+      return;
+    }
 
     let sentence = '';
+
     if (travelString && fuelString) {
-      sentence = `${travelString} and ${fuelString}`;
+      let fuelText = fuelString;
+      if (fuelText.length > 0) {
+        fuelText = fuelText.charAt(0).toLowerCase() + fuelText.slice(1);
+      }
+      sentence = `${travelString} and ${fuelText}`;
     } else if (travelString) {
       sentence = travelString;
     } else if (fuelString) {
       sentence = fuelString.charAt(0).toUpperCase() + fuelString.slice(1);
     }
 
-    if (sentence && !/[.!?]$/.test(sentence)) {
-      sentence = sentence + '.';
+    if (sentence && !sentence.endsWith('.')) {
+      sentence += '.';
     }
 
     if (sentence) {

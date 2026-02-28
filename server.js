@@ -113,32 +113,4 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// --- TBA proxy endpoint (server-side; keeps API key out of client)
-const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
-
-app.get('/api/tba/team/:teamNumber', async (req, res) => {
-  const apiKey = process.env.TBA_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'TBA_API_KEY not configured on server' });
-  }
-
-  const teamNumber = req.params.teamNumber;
-  try {
-    const resp = await fetch(`${TBA_BASE_URL}/team/frc${teamNumber}`, {
-      headers: { 'X-TBA-Auth-Key': apiKey }
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      return res.status(resp.status).json({ error: 'TBA API error', details: text });
-    }
-
-    const data = await resp.json();
-    return res.json(data);
-  } catch (err) {
-    console.error('Error proxying TBA request:', err);
-    return res.status(500).json({ error: 'Error proxying TBA request' });
-  }
-});
-
 module.exports = app;
