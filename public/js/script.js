@@ -2095,7 +2095,15 @@ function renderFlaggedMatches(teamData) {
     const matchNum = row['Match'] || row['Match Number'];
     if (!matchNum) return;
 
+    const startingPosition = row['Starting Position']?.toString().trim();
+    const isRobotMissing = startingPosition === 'R';
+    
     const reasons = [];
+
+    if (isRobotMissing) {
+      flaggedMatches.push(`<div style="margin-bottom: 16px; font-size: 16px; line-height: 1.5;"><strong style="font-size: 16px;">Q${matchNum}:</strong> <span style="color: #ff5c5c; font-weight: bold; text-transform: uppercase;">ROBOT MISSING</span></div>`);
+      return; 
+    }
 
     const robotDied = parseFloat(row['Robot Died'] || row['Died or Immobilized'] || 0);
     if (robotDied > 0) {
@@ -4757,6 +4765,9 @@ function renderMatchSummary(teams) {
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
     });
 
     const climbValues = teamMatches
@@ -4778,6 +4789,9 @@ function renderMatchSummary(teams) {
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
     });
 
     const shootingValues = teamMatches
@@ -4795,6 +4809,9 @@ function renderMatchSummary(teams) {
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
     });
 
     const climbValues = teamMatches
@@ -4833,6 +4850,9 @@ function renderMatchSummary(teams) {
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
     });
 
     const levelNum = targetLevel.replace('L', '');
@@ -4851,43 +4871,54 @@ function renderMatchSummary(teams) {
     return avgTime.toFixed(1) + 's';
   };
 
-  const calculateDiedRate = (team) => {
-    if (!team) return '0%';
+  const calculateDiedAndMissingRate = (team) => {
+    if (!team) return { diedRate: '0%', missingRate: '0%', diedMatches: [], missingMatches: [] };
+    
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
     });
 
-    if (teamMatches.length === 0) return '0%';
+    if (teamMatches.length === 0) return { diedRate: '0%', missingRate: '0%', diedMatches: [], missingMatches: [] };
 
-    const diedCount = teamMatches.filter(row => {
-      const died = row['Robot Died']?.toString().trim() || row['Died or Immobilized']?.toString().trim();
-      return died === '1' || died === '0.5' || died === 'true';
-    }).length;
-
-    return Math.round((diedCount / teamMatches.length) * 100) + '%';
-  };
-
-  const getDeathMatches = (team) => {
-    if (!team) return [];
-    const teamMatches = eventData.filter(row => {
-      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-      return teamNum === team;
-    });
-
-    const deathMatches = teamMatches
+    const diedMatches = teamMatches
       .filter(row => {
         const died = row['Robot Died']?.toString().trim() || row['Died or Immobilized']?.toString().trim();
-        return died === '1' || died === '0.5' || died === 'true';
+        const startingPosition = row['Starting Position']?.toString().trim();
+        return (died === '1' || died === '0.5' || died === 'true') && startingPosition !== 'R';
       })
       .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
       .filter(m => m);
 
-    return deathMatches.sort((a, b) => {
-      const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
-      const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
-      return numA - numB;
-    });
+    const missingMatches = teamMatches
+      .filter(row => {
+        const startingPosition = row['Starting Position']?.toString().trim();
+        return startingPosition === 'R';
+      })
+      .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
+      .filter(m => m);
+
+    const diedCount = diedMatches.length;
+    const missingCount = missingMatches.length;
+    const totalMatches = teamMatches.length;
+
+    const diedRate = Math.round((diedCount / totalMatches) * 100) + '%';
+    const missingRate = Math.round((missingCount / totalMatches) * 100) + '%';
+
+    return {
+      diedRate,
+      missingRate,
+      diedMatches: diedMatches.sort((a, b) => {
+        const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
+        const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
+        return numA - numB;
+      }),
+      missingMatches: missingMatches.sort((a, b) => {
+        const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
+        const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
+        return numA - numB;
+      })
+    };
   };
 
   const calculateAvgDefenseRating = (team) => {
@@ -4895,6 +4926,9 @@ function renderMatchSummary(teams) {
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
     });
 
     const defenseRatings = teamMatches
@@ -4992,29 +5026,57 @@ function renderMatchSummary(teams) {
     const mostCommonClimb = getMostCommonClimb(team);
     const climbTime = getAverageClimbTime(team, mostCommonClimb);
     const climbRate = calculateClimbRate(team);
-    const diedRate = calculateDiedRate(team);
-    const deathMatches = getDeathMatches(team);
+    const { diedRate, missingRate, diedMatches, missingMatches } = calculateDiedAndMissingRate(team);
     const defenseRating = calculateAvgDefenseRating(team);
     const teamCellBg = alliance === 'Red' ? '#ff5c5c30' : '#3EDBF030';
 
     let teamDisplay = team;
     let tooltipHTML = '';
-    if (diedRate !== '0%') {
-      teamDisplay = `⚠️${team}⚠️`;
-      const matchesStr = deathMatches.join(', ');
-      tooltipHTML = `
-        <div class="death-tooltip" style="border-color: ${allianceColor};">
-          <div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>
-          <div class="death-tooltip-row">
-            <span class="death-tooltip-label" style="color: ${allianceColor};">Died %:</span>
-            <span class="death-tooltip-value">${diedRate}</span>
-          </div>
-          <div class="death-tooltip-row">
-            <span class="death-tooltip-label" style="color: ${allianceColor};">Matches:</span>
-            <span class="death-tooltip-value">${matchesStr}</span>
-          </div>
+    
+    const hasIssues = diedMatches.length > 0 || missingMatches.length > 0;
+    
+    if (hasIssues) {
+      teamDisplay = `⚠️${team}`; 
+      
+      tooltipHTML = `<div class="death-tooltip" style="border-color: ${allianceColor};">`;
+      
+      tooltipHTML += `<div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>`;
+      
+      tooltipHTML += `
+        <div class="death-tooltip-row">
+          <span class="death-tooltip-label" style="color: ${allianceColor};">Died %:</span>
+          <span class="death-tooltip-value">${diedRate}</span>
         </div>
       `;
+      
+      if (diedMatches.length > 0) {
+        const matchesStr = diedMatches.join(', ');
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
+            <span class="death-tooltip-value">${matchesStr}</span>
+          </div>
+        `;
+      } else {
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
+            <span class="death-tooltip-value">None</span>
+          </div>
+        `;
+      }
+      
+      if (missingMatches.length > 0) {
+        const matchesStr = missingMatches.join(', ');
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Missing:</span>
+            <span class="death-tooltip-value">${matchesStr}</span>
+          </div>
+        `;
+      }
+      
+      tooltipHTML += `</div>`;
     }
 
     summaryHTML += `
@@ -5046,7 +5108,6 @@ function renderMatchSummary(teams) {
   summaryDiv.innerHTML = summaryHTML;
   console.log("Summary HTML inserted");
 }
-
 function updateMatchPrediction(teams) {
   if (teams.length !== 6) return;
 
