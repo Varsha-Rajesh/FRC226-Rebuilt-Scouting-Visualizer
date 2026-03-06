@@ -776,21 +776,21 @@ function handleFileUpload(inputId, dataKey, statusDiv) {
 
 function parseEventScoutingCSV(csvText, fileName) {
   try {
-    const result = Papa.parse(csvText, { 
-      header: true, 
+    const result = Papa.parse(csvText, {
+      header: true,
       skipEmptyLines: true,
-      transform: function(value) {
+      transform: function (value) {
         if (typeof value === 'string') {
           return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
         }
         return value;
       }
     });
-    
+
     if (result.errors && result.errors.length > 0) {
       console.warn('Papa Parse warnings:', result.errors);
     }
-    
+
     eventScoutingData = result.data;
     console.log(`Event Scouting Data loaded: ${eventScoutingData.length} rows`);
     updateVisualizerWithData('event', eventScoutingData);
@@ -802,28 +802,28 @@ function parseEventScoutingCSV(csvText, fileName) {
 
 function parsePitScoutingCSV(csvText, fileName) {
   try {
-    const result = Papa.parse(csvText, { 
-      header: true, 
+    const result = Papa.parse(csvText, {
+      header: true,
       skipEmptyLines: true,
-      transform: function(value) {
+      transform: function (value) {
         if (typeof value === 'string') {
           return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
         }
         return value;
       }
     });
-    
+
     if (result.errors && result.errors.length > 0) {
       console.warn('Papa Parse warnings:', result.errors);
     }
-    
+
     pitScoutingData = result.data.filter(row => {
-      return row['Team Number'] && 
-             row['Trench'] !== undefined && 
-             row['Ground Intake'] !== undefined && 
-             row['Shoot on Fly'] !== undefined;
+      return row['Team Number'] &&
+        row['Trench'] !== undefined &&
+        row['Ground Intake'] !== undefined &&
+        row['Shoot on Fly'] !== undefined;
     });
-    
+
     console.log(`Pit Scouting Data loaded: ${pitScoutingData.length} teams`);
     updateVisualizerWithData('pit', pitScoutingData);
   } catch (error) {
@@ -834,30 +834,30 @@ function parsePitScoutingCSV(csvText, fileName) {
 
 function parseMatchScheduleCSV(csvText, fileName) {
   try {
-    const result = Papa.parse(csvText, { 
-      header: true, 
+    const result = Papa.parse(csvText, {
+      header: true,
       skipEmptyLines: true,
-      transform: function(value) {
+      transform: function (value) {
         if (typeof value === 'string') {
           return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
         }
         return value;
       }
     });
-    
+
     if (result.errors && result.errors.length > 0) {
       console.warn('Papa Parse warnings:', result.errors);
     }
-    
+
     const requiredHeaders = ['Match Number', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
     const missingHeaders = requiredHeaders.filter(h => !result.meta.fields.includes(h));
-    
+
     if (missingHeaders.length > 0) {
       updateStatus(statusSchedule, `Missing headers: ${missingHeaders.join(", ")}`, false);
       matchScheduleData = [];
       return;
     }
-    
+
     matchScheduleData = result.data;
     console.log(`Match Schedule loaded: ${matchScheduleData.length} matches`);
     updateVisualizerWithData('schedule', matchScheduleData);
@@ -869,10 +869,10 @@ function parseMatchScheduleCSV(csvText, fileName) {
 
 function parseOPRCSV(csvText, fileName) {
   try {
-    const result = Papa.parse(csvText, { 
-      header: true, 
+    const result = Papa.parse(csvText, {
+      header: true,
       skipEmptyLines: true,
-      transform: function(value) {
+      transform: function (value) {
         if (typeof value === 'string') {
           const cleaned = value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
           if (!isNaN(parseFloat(cleaned)) && isFinite(cleaned)) {
@@ -883,21 +883,21 @@ function parseOPRCSV(csvText, fileName) {
         return value;
       }
     });
-    
+
     if (result.errors && result.errors.length > 0) {
       console.warn('Papa Parse warnings:', result.errors);
     }
-    
+
     const firstRow = result.data[0] || {};
     const hasTeamNumber = firstRow.hasOwnProperty('Team Number');
     const hasAutoOPR = firstRow.hasOwnProperty('Auto OPR');
     const hasTeleOPR = firstRow.hasOwnProperty('Tele OPR');
     const hasTotalOPR = firstRow.hasOwnProperty('Total OPR');
-    
+
     if (!hasTeamNumber || !hasTeleOPR || !hasAutoOPR || !hasTotalOPR) {
       console.warn('OPR CSV missing required headers');
     }
-    
+
     oprData = result.data;
     console.log(`OPR Data loaded: ${oprData.length} teams`);
     updateVisualizerWithData('opr', oprData);
@@ -1074,9 +1074,9 @@ function updateVisualizerWithData(dataType, data) {
 function parseCSV() {
   if (!csvText) return { data: [], meta: { fields: [] } };
   try {
-    return Papa.parse(csvText, { 
+    return Papa.parse(csvText, {
       header: true,
-      transform: function(value) {
+      transform: function (value) {
         if (typeof value === 'string') {
           return value.replace(/^"+|"+$/g, '').replace(/"{2,}/g, '"').trim();
         }
@@ -1487,35 +1487,35 @@ const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
 let teamNameCache = {};
 
 async function fetchTeamName(teamNumber) {
-    if (teamNameCache[teamNumber]) {
-        return teamNameCache[teamNumber];
+  if (teamNameCache[teamNumber]) {
+    return teamNameCache[teamNumber];
+  }
+
+  if (!navigator.onLine) {
+    console.log('Offline: Skipping TBA API call');
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${TBA_BASE_URL}/team/frc${teamNumber}`, {
+      headers: {
+        'X-TBA-Auth-Key': TBA_API_KEY
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`TBA API error: ${response.status}`);
     }
 
-    if (!navigator.onLine) {
-        console.log('Offline: Skipping TBA API call');
-        return null; 
-    }
+    const data = await response.json();
+    const teamName = data.nickname;
 
-    try {
-        const response = await fetch(`${TBA_BASE_URL}/team/frc${teamNumber}`, {
-            headers: {
-                'X-TBA-Auth-Key': TBA_API_KEY
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`TBA API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const teamName = data.nickname;
-        
-        teamNameCache[teamNumber] = teamName;
-        return teamName;
-    } catch (error) {
-        console.error('Error fetching team name:', error);
-        return nul
-    }
+    teamNameCache[teamNumber] = teamName;
+    return teamName;
+  } catch (error) {
+    console.error('Error fetching team name:', error);
+    return nul
+  }
 }
 
 
@@ -2097,12 +2097,12 @@ function renderFlaggedMatches(teamData) {
 
     const startingPosition = row['Starting Position']?.toString().trim();
     const isRobotMissing = startingPosition === 'R';
-    
+
     const reasons = [];
 
     if (isRobotMissing) {
       flaggedMatches.push(`<div style="margin-bottom: 16px; font-size: 16px; line-height: 1.5;"><strong style="font-size: 16px;">Q${matchNum}:</strong> <span style="color: #ff5c5c; font-weight: bold; text-transform: uppercase;">ROBOT MISSING</span></div>`);
-      return; 
+      return;
     }
 
     const robotDied = parseFloat(row['Robot Died'] || row['Died or Immobilized'] || 0);
@@ -2283,7 +2283,7 @@ function renderAutoClimbChart(teamData) {
             maxRotation: 0,
             minRotation: 0,
             autoSkip: true,
-            maxTicksLimit: 8,
+            maxTicksLimit: matches.length,
             padding: 10
           }
         },
@@ -2533,7 +2533,7 @@ function renderTeleClimbChart(teamData) {
             maxRotation: 0,
             minRotation: 0,
             autoSkip: true,
-            maxTicksLimit: 8,
+            maxTicksLimit: matches.length,
             padding: 10
           }
         },
@@ -2632,7 +2632,7 @@ function renderAutoPaths(teamData) {
 
     if (sentence) {
       sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-      
+
       if (!sentence.endsWith('.')) {
         sentence += '.';
       }
@@ -3248,7 +3248,7 @@ function renderComparisonTeleClimbChart(column) {
               maxRotation: 0,
               minRotation: 0,
               autoSkip: true,
-              maxTicksLimit: 8,
+              maxTicksLimit: matches.length,
               padding: 10
             }
           },
@@ -3476,7 +3476,7 @@ function renderComparisonAutoClimbChart(column) {
               maxRotation: 0,
               minRotation: 0,
               autoSkip: true,
-              maxTicksLimit: 8,
+              maxTicksLimit: matches.length,
               padding: 10
             }
           },
@@ -3826,7 +3826,12 @@ function renderOverviewStackedChart(data) {
   const canvas = document.getElementById('overviewStackedChart');
   if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
+  const container = document.getElementById('overviewStackedChartContainer');
+  if (!container) return;
+
+  const titleDiv = container.querySelector('#overviewStackedChartTitle');
+  container.innerHTML = '';
+  if (titleDiv) container.appendChild(titleDiv);
 
   if (charts.overviewStackedChart) {
     charts.overviewStackedChart.destroy();
@@ -3837,52 +3842,41 @@ function renderOverviewStackedChart(data) {
     renderBlankChart('overviewStackedChart', 'No Data');
     return;
   }
-  const teamTotals = {};
 
+  const teamTotals = {};
   data.forEach(row => {
     const team = row['Team Number']?.toString().trim();
     if (!team) return;
-
     const points = parseFloat(row['Total Points']) || 0;
-
     if (!teamTotals[team]) {
       teamTotals[team] = { sum: 0, matches: 0 };
     }
-
     teamTotals[team].sum += points;
     teamTotals[team].matches += 1;
   });
 
   const oprTotals = {};
-
   if (oprCsvText && oprCsvText.trim()) {
     const parsed = Papa.parse(oprCsvText, {
       header: true,
       skipEmptyLines: true
     });
-
     parsed.data.forEach(row => {
       const team = row['Team Number']?.toString().trim();
       if (!team) return;
-
       const opr = parseFloat(
         (row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')
       ) || 0;
-
       oprTotals[team] = opr;
     });
   }
 
   const scores = Object.keys(teamTotals).map(team => {
-    const avgPoints =
-      teamTotals[team].sum / teamTotals[team].matches;
-
+    const avgPoints = teamTotals[team].matches > 0
+      ? teamTotals[team].sum / teamTotals[team].matches
+      : 0;
     const opr = oprTotals[team] || 0;
-
-    return {
-      team,
-      epa: avgPoints + opr
-    };
+    return { team, epa: avgPoints + opr };
   });
 
   if (scores.length === 0) {
@@ -3892,95 +3886,162 @@ function renderOverviewStackedChart(data) {
 
   scores.sort((a, b) => b.epa - a.epa);
 
-  const labels = scores.map(s => `Team ${s.team}`);
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.style.cssText = `
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    margin-top: 20px;
+  `;
 
+  const barWidth = 75; 
+  const spacing = 15;
+  const totalWidth = Math.max(800, scores.length * (barWidth + spacing));
+
+  const canvasContainer = document.createElement('div');
+  canvasContainer.style.cssText = `
+    width: ${totalWidth}px;
+    height: 650px;
+    position: relative;
+  `;
+
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'overviewStackedChart';
+  newCanvas.style.cssText = `
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  `;
+
+  canvasContainer.appendChild(newCanvas);
+  scrollWrapper.appendChild(canvasContainer);
+  container.appendChild(scrollWrapper);
+
+  const ctx = newCanvas.getContext('2d');
+  const labels = scores.map(s => `Team ${s.team}`);
   const cleanLabels = scores.map(s => s.team);
   const epaData = scores.map(s => s.epa);
-
   const barColors = scores.map(s => {
     if (s.team === '226') return '#FE59D7';
     if (s.team === highlightedOverviewTeam) return '#ffaad3';
     return '#3EDBF0';
   });
 
-  charts.overviewStackedChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'EPA',
-          data: epaData,
-          backgroundColor: barColors
-        }
-      ]
+charts.overviewStackedChart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      label: 'EPA',
+      data: epaData,
+      backgroundColor: barColors,
+      borderWidth: 0,
+      borderRadius: 6,
+      barThickness: 75, 
+      hoverBackgroundColor: barColors.map(color => color + '80')
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    devicePixelRatio: 3,
+    onClick: getChartClickHandler(),
+    layout: {
+      padding: {
+        top: 20,
+        bottom: 10,
+        left: 20,
+        right: 20
+      }
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      devicePixelRatio: 3,
-      onClick: getChartClickHandler(),
-
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            beforeBody: function (tooltipItems) {
-              const index = tooltipItems[0].dataIndex;
-              const ranking = index + 1;
-              return `Rank: ${ranking}`;
-            },
-            title: items => items[0].label,
-            label: item => `EPA: ${scores[item.dataIndex].epa.toFixed(2)}`
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        enabled: true,
+        callbacks: {
+          title: function(context) {
+            const idx = context[0].dataIndex;
+            return `Team ${scores[idx].team}`;
           },
-          backgroundColor: '#1C1E21',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          borderColor: '#000',
-          borderWidth: 1,
-          titleFont: { family: 'Lato', size: 14 },
-          bodyFont: { family: 'Lato', size: 14 },
-          padding: 10,
-          callbacks: {
-            title: items => items[0].label,
-            label: item => `Rank: ${item.dataIndex + 1}`,
-            afterLabel: item =>
-              `EPA: ${scores[item.dataIndex].epa.toFixed(2)}`
+          label: function(context) {
+            const idx = context.dataIndex;
+            const rank = idx + 1;
+            return [
+              `Rank: ${rank}`,
+              `EPA: ${scores[idx].epa.toFixed(2)}`
+            ];
           }
-        }
-      },
-
-      scales: {
-        x: {
-          stacked: false,
-          ticks: {
-            color: 'white',
-            maxRotation: 45,
-            minRotation: 45,
-            font: { family: 'Lato', size: 12, weight: 'bold' }
-          },
-          grid: { display: false }
         },
-        y: {
-          stacked: false,
-          beginAtZero: true,
-          ticks: {
-            color: 'white',
-            font: { family: 'Lato', size: 14, weight: 'bold' }
-          },
-          grid: { display: false }
+        backgroundColor: '#1C1E21',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: '#000',
+        borderWidth: 1,
+        titleFont: { family: 'Lato', size: 14 },
+        bodyFont: { family: 'Lato', size: 14 },
+        padding: 10
+      },
+      datalabels: {
+        display: true,
+        color: 'white',
+        anchor: 'end',
+        align: 'top',
+        offset: 4,
+        font: {
+          family: 'Lato',
+          size: 12,
+          weight: 'bold'
+        },
+        formatter: function(value) {
+          return value.toFixed(1);
         }
       }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: 'white',
+          maxRotation: 45,
+          minRotation: 45,
+          font: { family: 'Lato', size: 12, weight: 'bold' },
+          autoSkip: false
+        },
+        grid: { display: false }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          color: 'white',
+          font: { family: 'Lato', size: 14, weight: 'bold' },
+          stepSize: 25,
+          callback: function(value) {
+            return Math.round(value);
+          }
+        },
+        grid: { display: false }
+      }
     }
-  });
-  charts.overviewStackedChart.data.labels = cleanLabels;
-  charts.overviewStackedChart.update();
+  }
+});
+
+  if (charts.overviewStackedChart) {
+    charts.overviewStackedChart.data.labels = cleanLabels;
+    charts.overviewStackedChart.update();
+  }
 }
 
 function renderFuelOprChart() {
   const canvas = document.getElementById('fuelOprChart');
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+
+  const container = document.getElementById('fuelOprChartContainer');
+  if (!container) return;
+
+  const titleDiv = container.querySelector('#fuelOprChartTitle');
+  container.innerHTML = '';
+  if (titleDiv) container.appendChild(titleDiv);
 
   if (charts['fuelOprChart']) {
     charts['fuelOprChart'].destroy();
@@ -4029,72 +4090,153 @@ function renderFuelOprChart() {
     }
 
     const sorted = entries.sort((a, b) => b.value - a.value);
+
+    const scrollWrapper = document.createElement('div');
+    scrollWrapper.style.cssText = `
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      margin-top: 20px;
+    `;
+
+    const barWidth = 75; 
+    const spacing = 15;
+    const totalWidth = Math.max(800, sorted.length * (barWidth + spacing));
+
+    const canvasContainer = document.createElement('div');
+    canvasContainer.style.cssText = `
+      width: ${totalWidth}px;
+      height: 650px;
+      position: relative;
+    `;
+
+    const newCanvas = document.createElement('canvas');
+    newCanvas.id = 'fuelOprChart';
+    newCanvas.style.cssText = `
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    `;
+
+    canvasContainer.appendChild(newCanvas);
+    scrollWrapper.appendChild(canvasContainer);
+    container.appendChild(scrollWrapper);
+
+    const ctx = newCanvas.getContext('2d');
     const labels = sorted.map(s => `Team ${s.team}`);
     const cleanLabels = sorted.map(s => s.team);
     const dataVals = sorted.map(s => s.value);
-    const colors = sorted.map(s => (s.team === '226' ? '#FE59D7' : (s.team === highlightedOverviewTeam ? '#ffaad3' : '#3EDBF0')));
+    const colors = sorted.map(s =>
+    (s.team === '226' ? '#FE59D7' :
+      (s.team === highlightedOverviewTeam ? '#ffaad3' : '#3EDBF0'))
+    );
 
-    charts['fuelOprChart'] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'OPR', data: dataVals, backgroundColor: colors }
-        ]
-      },
-      options: {
-        onClick: getChartClickHandler(),
-        responsive: true,
-        maintainAspectRatio: false,
-        devicePixelRatio: 3,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              beforeBody: function (tooltipItems) {
-                const index = tooltipItems[0].dataIndex;
-                const ranking = index + 1;
-                return `Rank: ${ranking}`;
-              }
-            },
-            backgroundColor: '#1C1E21',
-            titleColor: '#fff',
-            bodyColor: '#fff',
-            borderColor: '#000',
-            borderWidth: 1,
-            titleFont: { family: 'Lato', size: 14 },
-            bodyFont: { family: 'Lato', size: 14 },
-            padding: 10
-          }
-        },
-        scales: {
-          x: {
-            ticks: {
-              color: 'white',
-              font: { family: 'Lato', size: 12, weight: 'bold' },
-              autoSkip: false,
-              maxRotation: 45,
-              minRotation: 45
-            },
-            grid: { display: false }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: 'white', font: { family: 'Lato', size: 14, weight: 'bold' } },
-            grid: { display: false }
-          }
-        },
-        layout: { padding: { left: 10, right: 10, top: 20, bottom: 50 } }
+charts['fuelOprChart'] = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: 'OPR',
+      data: dataVals,
+      backgroundColor: colors,
+      borderWidth: 0,
+      borderRadius: 6,
+      barThickness: 75, 
+      hoverBackgroundColor: colors.map(color => color + '80')
+    }]
+  },
+  options: {
+    onClick: getChartClickHandler(),
+    responsive: true,
+    maintainAspectRatio: false,
+    devicePixelRatio: 3,
+    layout: {
+      padding: {
+        top: 20,
+        bottom: 10,
+        left: 20,
+        right: 20
       }
-    });
-    charts['fuelOprChart'].data.labels = cleanLabels;
-    charts['fuelOprChart'].update();
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        enabled: true,
+        callbacks: {
+          title: function(context) {
+            const idx = context[0].dataIndex;
+            return `Team ${sorted[idx].team}`;
+          },
+          label: function(context) {
+            const idx = context.dataIndex;
+            const rank = idx + 1;
+            return [
+              `Rank: ${rank}`,
+              `OPR: ${sorted[idx].value.toFixed(2)}`
+            ];
+          }
+        },
+        backgroundColor: '#1C1E21',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: '#000',
+        borderWidth: 1,
+        titleFont: { family: 'Lato', size: 14 },
+        bodyFont: { family: 'Lato', size: 14 },
+        padding: 10
+      },
+      datalabels: {
+        display: true,
+        color: 'white',
+        anchor: 'end',
+        align: 'top',
+        offset: 4,
+        font: {
+          family: 'Lato',
+          size: 12,
+          weight: 'bold'
+        },
+        formatter: function(value) {
+          return Math.round(value);
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: 'white',
+          font: { family: 'Lato', size: 12, weight: 'bold' },
+          autoSkip: false,
+        },
+        grid: { display: false }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          color: 'white',
+          font: { family: 'Lato', size: 14, weight: 'bold' },
+          stepSize: 25,
+          callback: function(value) {
+            return Math.round(value);
+          }
+        },
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+    if (charts['fuelOprChart']) {
+      charts['fuelOprChart'].data.labels = cleanLabels;
+      charts['fuelOprChart'].update();
+    }
   } catch (err) {
     console.error('Error rendering Fuel OPR chart', err);
     renderBlankChart('fuelOprChart', 'Error');
   }
 }
-
 
 function handleOverviewSearch() {
   const input = document.getElementById('overviewSearch').value.trim();
@@ -4873,7 +5015,7 @@ function renderMatchSummary(teams) {
 
   const calculateDiedAndMissingRate = (team) => {
     if (!team) return { diedRate: '0%', missingRate: '0%', diedMatches: [], missingMatches: [] };
-    
+
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
@@ -5032,23 +5174,23 @@ function renderMatchSummary(teams) {
 
     let teamDisplay = team;
     let tooltipHTML = '';
-    
+
     const hasIssues = diedMatches.length > 0 || missingMatches.length > 0;
-    
+
     if (hasIssues) {
-      teamDisplay = `⚠️${team}`; 
-      
+      teamDisplay = `⚠️${team}`;
+
       tooltipHTML = `<div class="death-tooltip" style="border-color: ${allianceColor};">`;
-      
+
       tooltipHTML += `<div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>`;
-      
+
       tooltipHTML += `
         <div class="death-tooltip-row">
           <span class="death-tooltip-label" style="color: ${allianceColor};">Died %:</span>
           <span class="death-tooltip-value">${diedRate}</span>
         </div>
       `;
-      
+
       if (diedMatches.length > 0) {
         const matchesStr = diedMatches.join(', ');
         tooltipHTML += `
@@ -5065,7 +5207,7 @@ function renderMatchSummary(teams) {
           </div>
         `;
       }
-      
+
       if (missingMatches.length > 0) {
         const matchesStr = missingMatches.join(', ');
         tooltipHTML += `
@@ -5075,7 +5217,7 @@ function renderMatchSummary(teams) {
           </div>
         `;
       }
-      
+
       tooltipHTML += `</div>`;
     }
 
