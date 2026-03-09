@@ -2,7 +2,13 @@
 
 const charts = {
   overviewStackedChart: null,
-  fuelOprChart: null
+  fuelOprChart: null,
+  fuelFerriedChart: null,
+  autoFuelShotChart: null,
+  autoFuelFerriedChart: null,
+  teleFuelShotChart: null,
+  teleFuelFerriedChart: null,
+  teleFuelWeightedGraph: null 
 };
 
 let hiddenTeams = JSON.parse(localStorage.getItem('hiddenTeams') || '[]');
@@ -22,23 +28,25 @@ let pitScoutingData = [];
 /*-----RANKINGS-----*/
 
 const columnMapping = {
-  'autoOPR': 4,
-  'autoClimbAttempts': 5,
-  'autoClimbSuccesses': 6,
-  'stuckOnBar': 7,
-  'teleOPR': 8,
-  'shootingAccuracy': 9,
-  'climbTimePerLevel': 10,
-  'avgClimbPoints': 11,
-  'climbAttempts': 12,
-  'climbSuccesses': 13,
-  'driverSkill': 14,
-  'countDefenseRatings': 15,
-  'maxDefenseRatings': 16,
-  'robotDiedPercent': 17
+  'avgTeleShot': 4,
+  'avgAutoShot': 5,
+  'avgAutoFerried': 6,
+  'avgTeleFerried': 7,
+  'autoClimbAttempts': 8,
+  'autoClimbSuccesses': 9,
+  'stuckOnBar': 10,
+  'shootingAccuracy': 11,
+  'avgClimbPoints': 12,
+  'climbAttempts': 13,
+  'climbSuccesses': 14,
+  'driverSkill': 15,
+  'countDefenseRatings': 16,
+  'maxDefenseRatings': 17,
+  'robotDiedPercent': 18,
+  'autoOPR': 19,
+  'teleOPR': 20
 };
-
-
+columnMapping['weightedTeleFuel'] = 3; 
 function updateRankingTableColumns() {
   const ths = document.querySelectorAll('#rankingTable thead th');
   const trs = document.querySelectorAll('#rankingTable tbody tr');
@@ -49,9 +57,10 @@ function updateRankingTableColumns() {
     .map(cb => cb.value);
 
   ths.forEach((th, index) => {
-    if (index <= 3) {
+    if (index === 0 || index === 1 || index === 2 || index === 3) {
       th.style.display = '';
-    } else {
+    }
+    else {
       let shouldShow = false;
       for (const [value, colIndex] of Object.entries(columnMapping)) {
         if (colIndex === index && checkedValues.includes(value)) {
@@ -65,7 +74,7 @@ function updateRankingTableColumns() {
 
   trs.forEach(tr => {
     Array.from(tr.children).forEach((td, index) => {
-      if (index <= 3) {
+      if (index === 0 || index === 1 || index === 2 || index === 3) {
         td.style.display = '';
       } else {
         let shouldShow = false;
@@ -80,7 +89,6 @@ function updateRankingTableColumns() {
     });
   });
 }
-
 document.getElementById('rankingFilterForm')?.addEventListener('change', function () {
   renderRankingTable();
   updateRankingTableColumns();
@@ -99,18 +107,25 @@ function renderRankingTable() {
   if (!tableBody) return;
 
   let oprData = {};
+  let hasOprData = false;
+
   if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    parsed.data.forEach(row => {
-      const team = row['Team Number']?.toString().trim();
-      if (team) {
-        oprData[team] = {
-          autoOPR: parseFloat((row['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
-          teleOPR: parseFloat((row['Tele OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
-          totalOPR: parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0
-        };
-      }
-    });
+    try {
+      const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
+      parsed.data.forEach(row => {
+        const team = row['Team Number']?.toString().trim();
+        if (team) {
+          oprData[team] = {
+            autoOPR: parseFloat((row['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
+            teleOPR: parseFloat((row['Tele OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
+            totalOPR: parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0
+          };
+          hasOprData = true;
+        }
+      });
+    } catch (e) {
+      console.error('Error parsing OPR data:', e);
+    }
   }
 
   const visibleTeamsData = eventScoutingData.filter(row => {
@@ -130,24 +145,19 @@ function renderRankingTable() {
 
   const teamStats = Object.keys(teams).map(team => {
     const matches = teams[team];
-    const opr = oprData[team] || { autoOPR: 0, teleOPR: 0, totalOPR: 0 };
 
     const avgTotalPoints = avg(matches, 'Total Points') || avg(matches, 'Total Score') || 0;
-    const avgEPA = avgTotalPoints + opr.totalOPR;
+    const avgEPA = Math.round(avgTotalPoints * 100) / 100;
 
-    const avgOPR = opr.totalOPR;
+    const avgAutoShot = Math.round((avg(matches, 'Auto Fuel Shot') || 0) * 100) / 100;
+    const avgTeleShot = Math.round((avg(matches, 'Tele Fuel Shot') || 0) * 100) / 100;
+    const avgAutoFerried = Math.round((avg(matches, 'Auto Fuel Ferried') || 0) * 100) / 100;
+    const avgTeleFerried = Math.round((avg(matches, 'Tele Fuel Ferried') || 0) * 100) / 100;
 
     const autoClimbAttempts = matches.filter(r => r['Climb Auto'] && r['Climb Auto'] !== '' && r['Climb Auto'] !== 'F').length;
     const autoClimbSuccesses = matches.filter(r => r['Climb Auto'] === '1').length;
 
     const stuckOnBar = matches.reduce((sum, r) => sum + (parseInt(r['Stuck On Bar']) || 0), 0);
-
-    const climbTimeVals = matches.map(r => parseFloat(r['Climb Time per Level'] || NaN)).filter(v => !isNaN(v) && v !== 0);
-    let climbTimePerLevel = 0;
-    if (climbTimeVals.length) {
-      climbTimePerLevel = climbTimeVals.reduce((a, b) => a + b, 0) / climbTimeVals.length;
-      climbTimePerLevel = Math.round(climbTimePerLevel * 10) / 10;
-    }
 
     const avgAutoClimbPoints = avg(matches, 'Auto Climb Points') || 0;
     const avgTeleClimbPoints = avg(matches, 'Tele Climb Points') || 0;
@@ -186,16 +196,50 @@ function renderRankingTable() {
         : '0.00';
     })();
 
+    const weightedTeleFuel = (() => {
+      const teleFuelWithMatches = matches.map(row => {
+        const matchNum = parseInt(row['Match'] || row['Match Number'] || 0);
+        const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+        return { match: matchNum, value: teleFuel };
+      }).filter(item => !isNaN(item.value) && item.match > 0);
+
+      if (teleFuelWithMatches.length === 0) return 0;
+
+      let totalWeightedValue = 0;
+      let totalWeight = 0;
+
+      teleFuelWithMatches.forEach(item => {
+        let weight;
+        if (item.match <= 2) {
+          weight = 0.5;
+        } else if (item.match <= 6) {
+          weight = 1.0;
+        } else if (item.match <= 8) {
+          weight = 1.5;
+        } else {
+          weight = 2.0;
+        }
+
+        totalWeightedValue += item.value * weight;
+        totalWeight += weight;
+      });
+
+      return totalWeight > 0 ? totalWeightedValue / totalWeight : 0;
+    })();
+
+    const teamOpr = oprData[team] || { autoOPR: 0, teleOPR: 0, totalOPR: 0 };
+
     return {
       team,
       avgEPA,
-      avgOPR,
-      autoOPR: opr.autoOPR,
+      weightedTeleFuel, 
+      avgAutoShot,
+      avgTeleShot,
+      avgAutoFerried,
+      avgTeleFerried,
       autoClimbAttempts,
       autoClimbSuccesses,
       stuckOnBar,
-      teleOPR: opr.teleOPR,
-      climbTimePerLevel,
       avgClimbPoints,
       climbAttempts,
       climbSuccesses,
@@ -203,7 +247,10 @@ function renderRankingTable() {
       countDefenseRatings,
       maxDefenseRatings,
       robotDiedPercent,
-      shootingAccuracy
+      shootingAccuracy,
+      autoOPR: teamOpr.autoOPR,
+      teleOPR: teamOpr.teleOPR,
+      totalOPR: teamOpr.totalOPR
     };
   });
 
@@ -217,16 +264,17 @@ function renderRankingTable() {
     const values = [
       idx + 1,
       stat.team,
-      stat.avgEPA.toFixed(2),
-      stat.avgOPR.toFixed(2),
-      stat.autoOPR.toFixed(2),
+      stat.avgEPA.toFixed(1),
+      stat.weightedTeleFuel.toFixed(1),  
+      stat.avgTeleShot.toFixed(1),
+      stat.avgAutoShot.toFixed(1),
+      stat.avgAutoFerried.toFixed(1),
+      stat.avgTeleFerried.toFixed(1),
       stat.autoClimbAttempts,
       stat.autoClimbSuccesses,
       stat.stuckOnBar,
-      stat.teleOPR.toFixed(2),
       stat.shootingAccuracy,
-      stat.climbTimePerLevel,
-      stat.avgClimbPoints.toFixed(2),
+      stat.avgClimbPoints.toFixed(1),
       stat.climbAttempts,
       stat.climbSuccesses,
       stat.driverSkill,
@@ -235,13 +283,38 @@ function renderRankingTable() {
       stat.robotDiedPercent + '%'
     ];
 
+    if (hasOprData) {
+      values.push(stat.autoOPR.toFixed(2));
+      values.push(stat.teleOPR.toFixed(2));
+    }
+
     let html = '';
-    const columnNames = ['Rank', 'Team', 'Avg EPA', 'Avg OPR', 'Auto OPR',
-      'Auto Climb Attempts', 'Auto Climb Successes', 'Stuck on Bar',
-      'Tele OPR', 'Shooting Accuracy',
-      'Climb Time per Level', 'Avg Climb Points', 'Climb Attempts',
-      'Climb Successes', 'Driver Skill', 'Count Defense Ratings',
-      'Max Defense Ratings', 'Robot Died %'];
+    const columnNames = [
+      'Rank',
+      'Team',
+      'Avg EPA',
+      'Weighted Tele Fuel',  
+      'Avg Tele Shot',
+      'Avg Auto Shot',
+      'Avg Auto Ferried',
+      'Avg Tele Ferried',
+      'Auto Climb Attempts',
+      'Auto Climb Successes',
+      'Stuck on Bar',
+      'Shooting Accuracy',
+      'Avg Climb Points',
+      'Climb Attempts',
+      'Climb Successes',
+      'Driver Skill',
+      'Count Defense Ratings',
+      'Max Defense Ratings',
+      'Robot Died %'
+    ];
+
+    if (hasOprData) {
+      columnNames.push('Auto OPR', 'Tele OPR');
+    }
+
     const flipColumns = ['Stuck on Bar', 'Robot Died %'];
 
     values.forEach((val, i) => {
@@ -249,29 +322,30 @@ function renderRankingTable() {
 
       if (i > 1) {
         const colName = columnNames[i];
-
         const allVals = teamStats.map(s => {
           switch (colName) {
             case 'Avg EPA': return s.avgEPA;
-            case 'Avg OPR': return s.avgOPR;
-            case 'Auto OPR': return s.autoOPR;
-            case 'Tele OPR': return s.teleOPR;
+            case 'Weighted Tele Fuel': return s.weightedTeleFuel;  
+            case 'Avg Tele Shot': return s.avgTeleShot;
+            case 'Avg Auto Shot': return s.avgAutoShot;
+            case 'Avg Auto Ferried': return s.avgAutoFerried;
+            case 'Avg Tele Ferried': return s.avgTeleFerried;
             case 'Auto Climb Attempts': return s.autoClimbAttempts;
             case 'Auto Climb Successes': return s.autoClimbSuccesses;
             case 'Climb Attempts': return s.climbAttempts;
             case 'Climb Successes': return s.climbSuccesses;
             case 'Shooting Accuracy': return parseFloat(s.shootingAccuracy);
-            case 'Climb Time per Level': return s.climbTimePerLevel;
             case 'Avg Climb Points': return s.avgClimbPoints;
             case 'Driver Skill': return s.driverSkill;
             case 'Count Defense Ratings': return s.countDefenseRatings;
             case 'Max Defense Ratings': return s.maxDefenseRatings;
             case 'Robot Died %': return parseFloat(s.robotDiedPercent);
             case 'Stuck on Bar': return s.stuckOnBar;
+            case 'Auto OPR': return s.autoOPR;
+            case 'Tele OPR': return s.teleOPR;
             default: return null;
           }
         }).filter(v => typeof v === 'number' && !isNaN(v));
-
         const numVal = parseFloat(val);
 
         if (!isNaN(numVal) && allVals.length) {
@@ -296,13 +370,161 @@ function renderRankingTable() {
     tableBody.appendChild(row);
   });
 
-  updateRankingTableColumns();
+  columnMapping['weightedTeleFuel'] = 3; 
+
+  updateRankingUIForOpr(hasOprData);
 
   function avg(arr, key) {
     const vals = arr.map(r => parseFloat(r[key] || 0)).filter(v => !isNaN(v));
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   }
 }
+
+function updateRankingUIForOpr(hasOprData) {
+  if (hasOprData) {
+    columnMapping['autoOPR'] = 18;
+    columnMapping['teleOPR'] = 19;
+  } else {
+    delete columnMapping['autoOPR'];
+    delete columnMapping['teleOPR'];
+  }
+
+  updateRankingTableColumns();
+  updateFilterCheckboxesForOpr(hasOprData);
+}
+
+function updateFilterCheckboxesForOpr(hasOprData) {
+  const filterForm = document.getElementById('rankingFilterForm');
+  if (!filterForm) return;
+
+  const filterGroups = filterForm.querySelectorAll('.filter-group-inline');
+  let otherGroup = null;
+
+  filterGroups.forEach(group => {
+    const heading = group.querySelector('h3');
+    if (heading && heading.textContent.trim() === 'Other') {
+      otherGroup = group;
+    }
+  });
+
+  if (!otherGroup) return;
+
+  const labels = otherGroup.querySelectorAll('label');
+  let autoOPRLabel = null;
+  let teleOPRLabel = null;
+
+  labels.forEach(label => {
+    const input = label.querySelector('input[type="checkbox"]');
+    if (input) {
+      if (input.value === 'autoOPR') {
+        autoOPRLabel = label;
+      } else if (input.value === 'teleOPR') {
+        teleOPRLabel = label;
+      }
+    }
+  });
+
+  if (autoOPRLabel) {
+    autoOPRLabel.style.display = hasOprData ? 'flex' : 'none';
+  }
+
+  if (teleOPRLabel) {
+    teleOPRLabel.style.display = hasOprData ? 'flex' : 'none';
+  }
+}
+
+function updateRankingTableColumns() {
+  const ths = document.querySelectorAll('#rankingTable thead th');
+  const trs = document.querySelectorAll('#rankingTable tbody tr');
+  const checkboxes = document.querySelectorAll('#rankingFilterForm input[type="checkbox"]');
+
+  const checkedValues = Array.from(checkboxes)
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+
+  const permanentColumns = new Set([0, 1, 2, 3]); 
+
+  ths.forEach((th, index) => {
+    if (permanentColumns.has(index)) {
+      th.style.display = '';
+    }
+    else {
+      let shouldShow = false;
+      for (const [value, colIndex] of Object.entries(columnMapping)) {
+        if (colIndex === index && checkedValues.includes(value)) {
+          shouldShow = true;
+          break;
+        }
+      }
+      th.style.display = shouldShow ? '' : 'none';
+    }
+  });
+
+  trs.forEach(tr => {
+    Array.from(tr.children).forEach((td, index) => {
+      if (permanentColumns.has(index)) {
+        td.style.display = '';
+      } else {
+        let shouldShow = false;
+        for (const [value, colIndex] of Object.entries(columnMapping)) {
+          if (colIndex === index && checkedValues.includes(value)) {
+            shouldShow = true;
+            break;
+          }
+        }
+        td.style.display = shouldShow ? '' : 'none';
+      }
+    });
+  });
+}
+function updateRankingTableColumnsWithOpr(hasOprData) {
+  const ths = document.querySelectorAll('#rankingTable thead th');
+  const trs = document.querySelectorAll('#rankingTable tbody tr');
+  const checkboxes = document.querySelectorAll('#rankingFilterForm input[type="checkbox"]');
+
+  const checkedValues = Array.from(checkboxes)
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+  if (hasOprData) {
+    columnMapping['autoOPR'] = 19;  
+    columnMapping['teleOPR'] = 20;   
+  }
+
+
+  ths.forEach((th, index) => {
+    if (index === 0 || index === 1 || index === 2) {
+      th.style.display = '';
+    } else {
+      let shouldShow = false;
+      for (const [value, colIndex] of Object.entries(columnMapping)) {
+        if (colIndex === index && checkedValues.includes(value)) {
+          shouldShow = true;
+          break;
+        }
+      }
+      th.style.display = shouldShow ? '' : 'none';
+    }
+  });
+
+  trs.forEach(tr => {
+    Array.from(tr.children).forEach((td, index) => {
+      if (index <= 3) {
+        td.style.display = '';
+      } else {
+        let shouldShow = false;
+        for (const [value, colIndex] of Object.entries(columnMapping)) {
+          if (colIndex === index && checkedValues.includes(value)) {
+            shouldShow = true;
+            break;
+          }
+        }
+        td.style.display = shouldShow ? '' : 'none';
+      }
+    });
+  });
+}
+
+
 
 document.getElementById('resetFilters').addEventListener('click', function () {
   const checkboxes = document.querySelectorAll('#rankingFilterForm input[type="checkbox"]');
@@ -318,9 +540,12 @@ document.getElementById('uncheckAll').addEventListener('click', function () {
   checkboxes.forEach(checkbox => {
     checkbox.checked = false;
   });
+
   renderRankingTable();
   updateRankingTableColumns();
   saveRankingFilterState();
+
+  console.log("Uncheck all clicked - Weighted Tele Fuel remains visible as permanent column");
 });
 
 document.getElementById('addIsolateTeamButtonRanking').addEventListener('click', function () {
@@ -368,7 +593,11 @@ function saveRankingFilterState() {
   try {
     const checkboxes = Array.from(document.querySelectorAll('#rankingFilterForm input[type="checkbox"]'));
     const state = {};
-    checkboxes.forEach(cb => { state[cb.value] = cb.checked; });
+    checkboxes.forEach(cb => {
+      if (cb.closest('label') && cb.closest('label').style.display !== 'none') {
+        state[cb.value] = cb.checked;
+      }
+    });
     localStorage.setItem('rankingFilterState', JSON.stringify(state));
   } catch (e) { console.error('saveRankingFilterState error', e); }
 }
@@ -907,6 +1136,208 @@ function parseOPRCSV(csvText, fileName) {
   }
 }
 
+/*-----CLEAR VIEWS WHEN DATA DELETED-----*/
+
+function clearAllEventDataViews() {
+  console.log("Clearing all event data views");
+
+  // In clearAllEventDataViews function, add:
+  if (charts.teleFuelWeightedGraph) {
+    charts.teleFuelWeightedGraph.destroy();
+    charts.teleFuelWeightedGraph = null;
+  }
+
+  // And add this to clear the weighted tele fuel amount
+  document.getElementById('weightedTeleFuelAmount').textContent = '0.00';
+
+  // Clear Overview charts
+  if (charts.overviewStackedChart) {
+    charts.overviewStackedChart.destroy();
+    charts.overviewStackedChart = null;
+  }
+  if (charts.fuelOprChart) {
+    charts.fuelOprChart.destroy();
+    charts.fuelOprChart = null;
+  }
+  if (charts.fuelFerriedChart) {
+    charts.fuelFerriedChart.destroy();
+    charts.fuelFerriedChart = null;
+  }
+
+  // Render blank charts in Overview
+  renderBlankChart('overviewStackedChart', 'No Data');
+  renderBlankChart('fuelOprChart', 'No Data');
+  renderBlankChart('fuelFerriedChart', 'No Data');
+
+  // Clear Match Predictor
+  document.getElementById('matchPredictionResult').innerHTML = '';
+  document.getElementById('matchSummaryTable').innerHTML = '';
+  document.getElementById('redTeam1').value = '';
+  document.getElementById('redTeam2').value = '';
+  document.getElementById('redTeam3').value = '';
+  document.getElementById('blueTeam1').value = '';
+  document.getElementById('blueTeam2').value = '';
+  document.getElementById('blueTeam3').value = '';
+  document.getElementById('matchNumberInput').value = '';
+
+  // Clear Individual View
+  document.getElementById('teamSearch').value = '';
+  document.getElementById('teamNicknameDisplay').textContent = '';
+  document.getElementById('flaggedMatches').innerHTML = '';
+  document.getElementById('scouterComments').innerHTML = '';
+  document.getElementById('autoPathContent').innerHTML = '';
+
+  // Clear pit scouting indicators in Individual View
+  document.getElementById('trench').textContent = '❌';
+  document.getElementById('groundIntake').textContent = '❌';
+  document.getElementById('shootOnFly').textContent = '❌';
+
+  // Clear stat elements in Individual View
+  const statElements = [
+    'avgShot', 'avgFerried', 'averageEPA', 'shootingAccuracy',
+    'climbSuccessRate', 'robotDiedRate'
+  ];
+  statElements.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = '0.00';
+  });
+
+  // In the individualCharts array in clearAllEventDataViews, add:
+  const individualCharts = [
+    'autoClimbChart', 'teleClimbChart', 'autoFuelShotChart',
+    'autoFuelFerriedChart', 'teleFuelShotChart', 'teleFuelFerriedChart',
+    'teleFuelWeightedGraph'  // Add this line
+  ];
+
+  individualCharts.forEach(chartId => {
+    if (charts[chartId]) {
+      charts[chartId].destroy();
+      charts[chartId] = null;
+    }
+    const canvas = document.getElementById(chartId);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '16px Lato';
+      ctx.fillStyle = '#aaa';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data', canvas.width / 2, canvas.height / 2);
+    }
+  });
+
+  // Clear Comparison View
+  if (window.comparisonTeamData) {
+    window.comparisonTeamData = { 1: [], 2: [] };
+  }
+
+  // Clear comparison search inputs and nicknames
+  document.getElementById('comparisonSearch1').value = '';
+  document.getElementById('comparisonSearch2').value = '';
+  document.getElementById('comparisonNickname1').textContent = '';
+  document.getElementById('comparisonNickname2').textContent = '';
+
+  document.getElementById('comparisonWeightedTeleFuel1').textContent = '0.00';
+  document.getElementById('comparisonWeightedTeleFuel2').textContent = '0.00';
+
+  // Clear comparison stat boxes
+  const comparisonStats = [
+    'comparisonTrench1', 'comparisonTrench2',
+    'comparisonGroundIntake1', 'comparisonGroundIntake2',
+    'comparisonShootOnFly1', 'comparisonShootOnFly2',
+    'comparisonAvgShot1', 'comparisonAvgShot2',
+    'comparisonAvgFerried1', 'comparisonAvgFerried2',
+    'comparisonEPA1', 'comparisonEPA2',
+    'comparisonShootingAccuracy1', 'comparisonShootingAccuracy2',
+    'comparisonClimbRate1', 'comparisonClimbRate2',
+    'comparisonDiedRate1', 'comparisonDiedRate2'
+  ];
+
+  comparisonStats.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = '0.00';
+  });
+
+  // Clear comparison path and comment containers
+  document.getElementById('comparisonAutoPaths1').innerHTML = '';
+  document.getElementById('comparisonAutoPaths2').innerHTML = '';
+  document.getElementById('comparisonComments1').innerHTML = '';
+  document.getElementById('comparisonComments2').innerHTML = '';
+
+  // Destroy all comparison charts
+  if (window.comparisonCharts) {
+    Object.keys(window.comparisonCharts).forEach(key => {
+      if (window.comparisonCharts[key]) {
+        try {
+          window.comparisonCharts[key].destroy();
+        } catch (e) { }
+        window.comparisonCharts[key] = null;
+      }
+    });
+  }
+  // In the section where you destroy comparison charts, add:
+  if (window.comparisonCharts) {
+    if (window.comparisonCharts.teleFuelWeighted1) {
+      window.comparisonCharts.teleFuelWeighted1.destroy();
+      window.comparisonCharts.teleFuelWeighted1 = null;
+    }
+    if (window.comparisonCharts.teleFuelWeighted2) {
+      window.comparisonCharts.teleFuelWeighted2.destroy();
+      window.comparisonCharts.teleFuelWeighted2 = null;
+    }
+  }
+
+  // Clear comparison chart canvases
+  const comparisonChartIds = [
+    'comparisonAutoClimbChart1', 'comparisonAutoClimbChart2',
+    'comparisonTeleClimbChart1', 'comparisonTeleClimbChart2',
+    'comparisonAutoFuelShotChart1', 'comparisonAutoFuelShotChart2',
+    'comparisonAutoFuelFerriedChart1', 'comparisonAutoFuelFerriedChart2',
+    'comparisonTeleFuelShotChart1', 'comparisonTeleFuelShotChart2',
+    'comparisonTeleFuelFerriedChart1', 'comparisonTeleFuelFerriedChart2',
+    'comparisonTeleFuelWeightedGraph1',
+    'comparisonTeleFuelWeightedGraph2'
+  ];
+
+  comparisonChartIds.forEach(canvasId => {
+    const canvas = document.getElementById(canvasId);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '16px Lato';
+      ctx.fillStyle = '#aaa';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data', canvas.width / 2, canvas.height / 2);
+    }
+  });
+
+  // Clear Filter Teams view
+  document.getElementById('rankedTeamsContainer').innerHTML = '';
+
+  // Clear Rankings table
+  const rankingTableBody = document.getElementById('rankingTableBody');
+  if (rankingTableBody) {
+    rankingTableBody.innerHTML = '';
+  }
+
+  // Update latest match info
+  document.getElementById('latestMatchInfoSidebar').textContent = 'Data up till Q—';
+
+  // Clear current team data
+  currentTeamData = [];
+}
+
+// Helper function to render blank chart
+function renderBlankChart(canvasId, message) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '24px Lato';
+  ctx.fillStyle = '#aaa';
+  ctx.textAlign = 'center';
+  ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
 function deleteFile(inputId) {
   let dataKey, statusDiv, confirmMessage;
 
@@ -941,7 +1372,11 @@ function deleteFile(inputId) {
   }
 
   if (confirm(confirmMessage)) {
-    if (dataKey === 'eventScouting') eventScoutingData = [];
+    if (dataKey === 'eventScouting') {
+      eventScoutingData = [];
+      // Clear all views that depend on event data
+      clearAllEventDataViews();
+    }
     if (dataKey === 'pitScouting') pitScoutingData = [];
     if (dataKey === 'matchSchedule') matchScheduleData = [];
     if (dataKey === 'opr') oprData = [];
@@ -1024,6 +1459,7 @@ function updateVisualizerWithData(dataType, data) {
     console.log(`Updating visualizer with ${dataType} data:`, data);
 
     switch (dataType) {
+      // Find the 'event' case in updateVisualizerWithData and update it to:
       case 'event':
         try {
           csvText = (Array.isArray(data) && data.length) ? Papa.unparse(data) : '';
@@ -1034,7 +1470,29 @@ function updateVisualizerWithData(dataType, data) {
         try { updateRankingTableColumns(); } catch (e) { }
         try { updateLatestMatchInfo(); } catch (e) { }
         try { renderOverviewStackedChart((Array.isArray(data) ? data : parseCSV().data) || []); } catch (e) { }
-        try { renderFuelOprChart(); } catch (e) { }
+        try { renderFuelShotChart(); } catch (e) { }
+        try { renderFuelFerriedChart(); } catch (e) { }
+
+        // Clear individual view if there's a currently searched team
+        const currentTeam = document.getElementById('teamSearch').value.trim();
+        if (currentTeam) {
+          try { searchTeam(); } catch (e) { console.warn('Could not refresh individual view', e); }
+        }
+
+        // Clear comparison view
+        if (window.comparisonTeamData) {
+          window.comparisonTeamData = { 1: [], 2: [] };
+        }
+
+        // Clear filter teams view and reapply filters
+        try { applyFilters(); } catch (e) { console.warn('Could not apply filters', e); }
+
+        // Clear match predictor
+        try {
+          document.getElementById('matchPredictionResult').innerHTML = '';
+          document.getElementById('matchSummaryTable').innerHTML = '';
+        } catch (e) { }
+
         break;
 
       case 'pit':
@@ -1061,7 +1519,6 @@ function updateVisualizerWithData(dataType, data) {
           localStorage.setItem('oprCsvText', oprCsvText || '');
         } catch (e) { console.warn('Could not serialize opr data', e); }
 
-        try { renderFuelOprChart(); } catch (e) { }
         try { renderRankingTable(); } catch (e) { }
         try { updateOverviewCharts(); } catch (e) { }
         break;
@@ -1294,7 +1751,7 @@ async function handleOPRUpload(e) {
       localStorage.setItem('oprCsvText', oprCsvText);
       localStorage.setItem('oprFileName', file.name);
       updateStatus(statusEl, file.name, true);
-      try { renderFuelOprChart(); } catch (e) { console.warn('Fuel OPR chart render failed', e); }
+      try { renderFuelShotChart(); } catch (e) { console.warn('Fuel OPR chart render failed', e); }
       try { renderRankingTable(); } catch (e) { console.warn('Ranking table refresh failed', e); }
       try { updateOverviewCharts(); } catch (e) { console.warn('Overview charts refresh failed', e); }
     } catch (err) {
@@ -1340,7 +1797,7 @@ async function handleDataUpload(e) {
   uploadFile('dataFile', 'statusData', 'csvData').then(() => {
     const parsedData = parseCSV();
     renderOverviewStackedChart(parsedData.data);
-    renderFuelOprChart();
+    renderFuelShotChart();
     updateDefenseRankings(parsedData.data);
     applyFilters();
 
@@ -1677,7 +2134,7 @@ function showTab(event, tabId) {
         renderBlankChart('fuelOprChart', 'No Data');
       } else {
         renderOverviewStackedChart(data);
-        renderFuelOprChart();
+        renderFuelShotChart();
       }
     } catch (err) {
       console.error('Error rendering overview charts on tab show:', err);
@@ -1788,19 +2245,28 @@ function filterAutoData() {
 
   const autoPathFilter = document.getElementById('autoPathFilter')?.value || 'all';
   const autoClimbFilter = document.getElementById('autoClimbFilter')?.value || 'all';
+  const autoFuelShotFilter = document.getElementById('autoFuelShotFilter')?.value || 'all';
+  const autoFuelFerriedFilter = document.getElementById('autoFuelFerriedFilter')?.value || 'all';
 
   let filteredData = currentTeamData;
 
-  if (autoPathFilter !== 'all' || autoClimbFilter !== 'all') {
-    const filterValue = autoPathFilter !== 'all' ? autoPathFilter : autoClimbFilter;
+  if (autoPathFilter !== 'all' || autoClimbFilter !== 'all' || autoFuelShotFilter !== 'all' || autoFuelFerriedFilter !== 'all') {
+    const filterValue = autoPathFilter !== 'all' ? autoPathFilter :
+      (autoClimbFilter !== 'all' ? autoClimbFilter :
+        (autoFuelShotFilter !== 'all' ? autoFuelShotFilter : autoFuelFerriedFilter));
     filteredData = currentTeamData.filter(row => {
       const startingPos = row['Starting Position']?.toString().trim();
       return startingPos === filterValue;
     });
   }
 
+  // Calculate global max for filtered data
+  const globalMaxFuel = calculateGlobalMaxFuel(filteredData);
+
   renderAutoPaths(filteredData);
   renderAutoClimbChart(filteredData);
+  renderAutoFuelShotChart(filteredData, globalMaxFuel);
+  renderAutoFuelFerriedChart(filteredData, globalMaxFuel);
 }
 
 function filterAutoPaths() {
@@ -1838,14 +2304,17 @@ function filterAutoClimb() {
 function syncIndividualViewDropdowns(value) {
   const autoPathFilter = document.getElementById('autoPathFilter');
   const autoClimbFilter = document.getElementById('autoClimbFilter');
+  const autoFuelShotFilter = document.getElementById('autoFuelShotFilter');
+  const autoFuelFerriedFilter = document.getElementById('autoFuelFerriedFilter');
 
-  if (autoPathFilter && autoClimbFilter) {
+  if (autoPathFilter && autoClimbFilter && autoFuelShotFilter && autoFuelFerriedFilter) {
     autoPathFilter.value = value;
     autoClimbFilter.value = value;
+    autoFuelShotFilter.value = value;
+    autoFuelFerriedFilter.value = value;
     filterAutoData();
   }
 }
-
 
 function searchTeam() {
   console.log("=== searchTeam() called ===");
@@ -1858,7 +2327,6 @@ function searchTeam() {
     console.log("No team number entered");
     return;
   }
-
 
   if (!csvText || csvText.length === 0) {
     console.error("No CSV data loaded!");
@@ -1880,15 +2348,43 @@ function searchTeam() {
     document.getElementById('groundIntake').textContent = '❌';
     document.getElementById('shootOnFly').textContent = '❌';
 
+    // Clear existing charts
     const autoClimbCanvas = document.getElementById('autoClimbChart');
     if (autoClimbCanvas) {
       const ctx = autoClimbCanvas.getContext('2d');
       ctx.clearRect(0, 0, autoClimbCanvas.width, autoClimbCanvas.height);
     }
+
     const teleClimbCanvas = document.getElementById('teleClimbChart');
     if (teleClimbCanvas) {
       const ctx = teleClimbCanvas.getContext('2d');
       ctx.clearRect(0, 0, teleClimbCanvas.width, teleClimbCanvas.height);
+    }
+
+    // Clear auto fuel charts
+    const autoFuelShotCanvas = document.getElementById('autoFuelShotChart');
+    if (autoFuelShotCanvas) {
+      const ctx = autoFuelShotCanvas.getContext('2d');
+      ctx.clearRect(0, 0, autoFuelShotCanvas.width, autoFuelShotCanvas.height);
+    }
+
+    const autoFuelFerriedCanvas = document.getElementById('autoFuelFerriedChart');
+    if (autoFuelFerriedCanvas) {
+      const ctx = autoFuelFerriedCanvas.getContext('2d');
+      ctx.clearRect(0, 0, autoFuelFerriedCanvas.width, autoFuelFerriedCanvas.height);
+    }
+
+    // Clear tele fuel charts
+    const teleFuelShotCanvas = document.getElementById('teleFuelShotChart');
+    if (teleFuelShotCanvas) {
+      const ctx = teleFuelShotCanvas.getContext('2d');
+      ctx.clearRect(0, 0, teleFuelShotCanvas.width, teleFuelShotCanvas.height);
+    }
+
+    const teleFuelFerriedCanvas = document.getElementById('teleFuelFerriedChart');
+    if (teleFuelFerriedCanvas) {
+      const ctx = teleFuelFerriedCanvas.getContext('2d');
+      ctx.clearRect(0, 0, teleFuelFerriedCanvas.width, teleFuelFerriedCanvas.height);
     }
 
     const autoPathContent = document.getElementById('autoPathContent');
@@ -1898,16 +2394,22 @@ function searchTeam() {
     return;
   }
 
+  // Reset all dropdown filters
   const autoPathFilter = document.getElementById('autoPathFilter');
   const autoClimbFilter = document.getElementById('autoClimbFilter');
   const teleClimbPositionFilterDropdown = document.getElementById('teleClimbPositionFilterDropdown');
+  const autoFuelShotFilter = document.getElementById('autoFuelShotFilter');
+  const autoFuelFerriedFilter = document.getElementById('autoFuelFerriedFilter');
 
   if (autoPathFilter) autoPathFilter.value = 'all';
   if (autoClimbFilter) autoClimbFilter.value = 'all';
   if (teleClimbPositionFilterDropdown) teleClimbPositionFilterDropdown.value = 'all';
+  if (autoFuelShotFilter) autoFuelShotFilter.value = 'all';
+  if (autoFuelFerriedFilter) autoFuelFerriedFilter.value = 'all';
 
   teleClimbPositionFilterValue = 'all';
 
+  // Load pit scouting data
   let pitData = [];
   console.log("pitCsvText exists:", !!pitCsvText);
 
@@ -1926,13 +2428,45 @@ function searchTeam() {
     }
   }
 
+  // Render all charts and data
   renderTeamStatistics(teamData, pitData);
   renderFlaggedMatches(teamData);
   renderAutoClimbChart(teamData);
   renderTeleClimbChart(teamData);
   renderAutoPaths(teamData);
   renderScouterComments(teamData);
+  // Add this at the end of searchTeam function, before return false;
+  renderTeleFuelWeightedGraph(teamData);
+
+  // Calculate global max for auto fuel charts
+  const globalMaxAutoFuel = calculateGlobalMaxFuel(teamData);
+  renderAutoFuelShotChart(teamData, globalMaxAutoFuel);
+  renderAutoFuelFerriedChart(teamData, globalMaxAutoFuel);
+
+  // Render tele fuel charts (no position filtering)
+  renderTeleFuelShotChart(teamData);
+  renderTeleFuelFerriedChart(teamData);
+
   return false;
+}
+// Helper function to calculate global max across both fuel metrics
+function calculateGlobalMaxFuel(teamData) {
+  let maxShot = 0;
+  let maxFerried = 0;
+
+  teamData.forEach(row => {
+    const autoFuelShot = parseFloat(row['Auto Fuel Shot'] || 0);
+    const autoFuelFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+
+    if (!isNaN(autoFuelShot)) {
+      maxShot = Math.max(maxShot, autoFuelShot);
+    }
+    if (!isNaN(autoFuelFerried)) {
+      maxFerried = Math.max(maxFerried, autoFuelFerried);
+    }
+  });
+
+  return Math.max(maxShot, maxFerried);
 }
 
 function renderScouterComments(teamData) {
@@ -2007,29 +2541,27 @@ function renderTeamStatistics(teamData, pitScoutingData) {
   document.getElementById('groundIntake').textContent = hasGroundIntake ? '✅' : '❌';
   document.getElementById('shootOnFly').textContent = hasShootOnFly ? '✅' : '❌';
 
+  // Calculate Average Shot (combining auto and tele fuel shots)
+  const autoFuelShots = teamData.map(row => parseFloat(row['Auto Fuel Shot'] || 0)).filter(v => !isNaN(v));
+  const teleFuelShots = teamData.map(row => parseFloat(row['Tele Fuel Shot'] || 0)).filter(v => !isNaN(v));
+  const allShots = [...autoFuelShots, ...teleFuelShots];
+  const avgShot = allShots.length > 0 ? allShots.reduce((a, b) => a + b, 0) / allShots.length : 0;
+
+  // Calculate Average Ferried (combining auto and tele fuel ferried)
+  const autoFuelFerried = teamData.map(row => parseFloat(row['Auto Fuel Ferried'] || 0)).filter(v => !isNaN(v));
+  const teleFuelFerried = teamData.map(row => parseFloat(row['Tele Fuel Ferried'] || 0)).filter(v => !isNaN(v));
+  const allFerried = [...autoFuelFerried, ...teleFuelFerried];
+  const avgFerried = allFerried.length > 0 ? allFerried.reduce((a, b) => a + b, 0) / allFerried.length : 0;
+
+  document.getElementById('avgShot').textContent = avgShot.toFixed(2);
+  document.getElementById('avgFerried').textContent = avgFerried.toFixed(2);
+
+  // Calculate EPA (average of total points only - no OPR)
   const totalPoints = teamData.map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0)).filter(v => !isNaN(v));
-  const avgTotalPoints = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
+  const epa = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
+  document.getElementById('averageEPA').textContent = epa.toFixed(2);
 
-  let autoOPR = 0;
-  let teleOPR = 0;
-  let totalOPR = 0;
-
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    const oprData = parsed.data.find(row => {
-      const teamNum = row['Team Number']?.toString().trim();
-      return teamNum === teamNumber;
-    });
-
-    if (oprData) {
-      autoOPR = parseFloat((oprData['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      teleOPR = parseFloat((oprData['Tele OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      totalOPR = parseFloat((oprData['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-    }
-  }
-
-  const epa = avgTotalPoints + totalOPR;
-
+  // Calculate Shooting Accuracy
   const shootingAccuracy = (() => {
     const accuracyVals = teamData
       .map(row => parseFloat(row['Shooting Accuracy']))
@@ -2038,30 +2570,16 @@ function renderTeamStatistics(teamData, pitScoutingData) {
       ? (accuracyVals.reduce((a, b) => a + b, 0) / accuracyVals.length).toFixed(2)
       : '0.00';
   })();
-
-  document.getElementById('averageEPA').textContent = epa.toFixed(2);
-  document.getElementById('totalOPR').textContent = totalOPR.toFixed(2);
   document.getElementById('shootingAccuracy').textContent = shootingAccuracy;
 
-  const climbTimeVals = teamData
-    .map(row => parseFloat(row['Climb Time per Level']))
-    .filter(v => !isNaN(v) && v > 0);
-
-  let climbTimePerLevel = 0;
-  if (climbTimeVals.length > 0) {
-    climbTimePerLevel = climbTimeVals.reduce((a, b) => a + b, 0) / climbTimeVals.length;
-    climbTimePerLevel = Math.round(climbTimePerLevel * 10) / 10;
-  }
-  document.getElementById('climbTimePerLevel').textContent = climbTimePerLevel.toFixed(2);
-
+  // Calculate Climb Success %
   const climbValues = teamData.map(row => row['Climb Teleop']?.toString().trim()).filter(v => v && v !== '');
-
   const successfulClimbs = climbValues.filter(v => ['1', '2', '3'].includes(v)).length;
   const totalClimbAttempts = climbValues.filter(v => ['1', '2', '3', 'F'].includes(v)).length;
-
   const climbSuccessRate = totalClimbAttempts > 0 ? ((successfulClimbs / totalClimbAttempts) * 100).toFixed(1) : "0.0";
   document.getElementById('climbSuccessRate').textContent = climbSuccessRate;
 
+  // Calculate Robot Died %
   const diedCount = teamData.filter(row => {
     const val = parseFloat(row['Robot Died'] || row['Died or Immobilized'] || 0);
     return val === 0.5 || val === 1;
@@ -2262,6 +2780,9 @@ function renderAutoClimbChart(teamData) {
               return context[0].label;
             }
           }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
         }
       },
       scales: {
@@ -2315,6 +2836,691 @@ function renderAutoClimbChart(teamData) {
   });
 }
 
+function renderAutoFuelShotChart(teamData, globalMax) {
+  const canvas = document.getElementById('autoFuelShotChart');
+  if (!canvas) {
+    console.warn('autoFuelShotChart canvas not found');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (charts.autoFuelShotChart) {
+    charts.autoFuelShotChart.destroy();
+    charts.autoFuelShotChart = null;
+  }
+
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelShotValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const autoFuelShot = parseFloat(row['Auto Fuel Shot'] || 0);
+    if (isNaN(autoFuelShot)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelShotValues.push(autoFuelShot);
+
+    // Always use blue color regardless of value
+    barColors.push('#3EDBF0');
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate y-axis max based on globalMax with step size 3
+  const yAxisMax = Math.ceil(globalMax / 3) * 3 || 27; // Round up to nearest multiple of 3, default to 27
+
+  charts.autoFuelShotChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: matches,
+      datasets: [{
+        label: 'Auto Fuel Shot',
+        data: fuelShotValues,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barPercentage: 1,
+        categoryPercentage: .9,
+        maxBarThickness: 75
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 25
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              return `Fuel Shots: ${context.raw}`;
+            }
+          }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: matches.length,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            maxTicksLimit: 6,
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            stepSize: 3,
+            callback: function (value) {
+              return Math.round(value);
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderAutoFuelFerriedChart(teamData, globalMax) {
+  const canvas = document.getElementById('autoFuelFerriedChart');
+  if (!canvas) {
+    console.warn('autoFuelFerriedChart canvas not found');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (charts.autoFuelFerriedChart) {
+    charts.autoFuelFerriedChart.destroy();
+    charts.autoFuelFerriedChart = null;
+  }
+
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelFerriedValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const autoFuelFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+    if (isNaN(autoFuelFerried)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelFerriedValues.push(autoFuelFerried);
+
+    // Always use blue color regardless of value
+    barColors.push('rgb(0, 184, 148)'); // #3EDBF0
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate y-axis max based on globalMax with step size 3
+  const yAxisMax = Math.ceil(globalMax / 3) * 3 || 27; // Round up to nearest multiple of 3, default to 27
+
+  charts.autoFuelFerriedChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: matches,
+      datasets: [{
+        label: 'Auto Fuel Ferried',
+        data: fuelFerriedValues,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barPercentage: 1,
+        categoryPercentage: .9,
+        maxBarThickness: 75
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 25
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              return `Fuel Ferried: ${context.raw}`;
+            }
+          }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: matches.length,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            maxTicksLimit: 6,
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            stepSize: 3,
+            callback: function (value) {
+              return Math.round(value);
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderTeleFuelShotChart(teamData) {
+  const canvas = document.getElementById('teleFuelShotChart');
+  if (!canvas) {
+    console.warn('teleFuelShotChart canvas not found');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (charts.teleFuelShotChart) {
+    charts.teleFuelShotChart.destroy();
+    charts.teleFuelShotChart = null;
+  }
+
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelShotValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuelShot = parseFloat(row['Tele Fuel Shot'] || 0);
+    if (isNaN(teleFuelShot)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelShotValues.push(teleFuelShot);
+
+    // Always use blue color regardless of value
+    barColors.push('#3EDBF0');
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate global max for tele fuel metrics to ensure consistent y-axis
+  const globalMaxTeleFuel = calculateGlobalMaxTeleFuel(teamData);
+  const yAxisMax = Math.ceil(globalMaxTeleFuel / 3) * 3 || 27; // Round up to nearest multiple of 3, default to 27
+
+  charts.teleFuelShotChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: matches,
+      datasets: [{
+        label: 'Tele Fuel Shot',
+        data: fuelShotValues,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barPercentage: 1,
+        categoryPercentage: .9,
+        maxBarThickness: 75
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 25
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              return `Fuel Shots: ${context.raw}`;
+            }
+          }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: matches.length,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            maxTicksLimit: 6,
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            stepSize: 3,
+            callback: function (value) {
+              return Math.round(value);
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderTeleFuelFerriedChart(teamData) {
+  const canvas = document.getElementById('teleFuelFerriedChart');
+  if (!canvas) {
+    console.warn('teleFuelFerriedChart canvas not found');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (charts.teleFuelFerriedChart) {
+    charts.teleFuelFerriedChart.destroy();
+    charts.teleFuelFerriedChart = null;
+  }
+
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelFerriedValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuelFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+    if (isNaN(teleFuelFerried)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelFerriedValues.push(teleFuelFerried);
+
+    // Always use blue color regardless of value
+    barColors.push('rgb(0, 184, 148)'); // #3EDBF0
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate global max for tele fuel metrics to ensure consistent y-axis
+  const globalMaxTeleFuel = calculateGlobalMaxTeleFuel(teamData);
+  const yAxisMax = Math.ceil(globalMaxTeleFuel / 3) * 3 || 27; // Round up to nearest multiple of 3, default to 27
+
+  charts.teleFuelFerriedChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: matches,
+      datasets: [{
+        label: 'Tele Fuel Ferried',
+        data: fuelFerriedValues,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barPercentage: 1,
+        categoryPercentage: .9,
+        maxBarThickness: 75
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 25
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              return `Fuel Ferried: ${context.raw}`;
+            }
+          }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: matches.length,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            maxTicksLimit: 6,
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            stepSize: 3,
+            callback: function (value) {
+              return Math.round(value);
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+// Helper function to calculate global max across both tele fuel metrics
+function calculateGlobalMaxTeleFuel(teamData) {
+  let maxShot = 0;
+  let maxFerried = 0;
+
+  teamData.forEach(row => {
+    const teleFuelShot = parseFloat(row['Tele Fuel Shot'] || 0);
+    const teleFuelFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+
+    if (!isNaN(teleFuelShot)) {
+      maxShot = Math.max(maxShot, teleFuelShot);
+    }
+    if (!isNaN(teleFuelFerried)) {
+      maxFerried = Math.max(maxFerried, teleFuelFerried);
+    }
+  });
+
+  return Math.max(maxShot, maxFerried);
+}
 function filterTeleClimbByPosition() {
   if (!currentTeamData || currentTeamData.length === 0) return;
 
@@ -2331,6 +3537,249 @@ function filterTeleClimbByPosition() {
   }
 
   renderTeleClimbChart(filteredData);
+}
+
+function renderTeleFuelWeightedGraph(teamData) {
+  const canvas = document.getElementById('teleFuelWeightedGraph');
+  if (!canvas) {
+    console.warn('teleFuelWeightedGraph canvas not found');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (charts.teleFuelWeightedGraph) {
+    charts.teleFuelWeightedGraph.destroy();
+    charts.teleFuelWeightedGraph = null;
+  }
+
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel data', canvas.width / 2, canvas.height / 2);
+    document.getElementById('weightedTeleFuelAmount').textContent = '0.00';
+    return;
+  }
+
+  // Sort data by match number
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const teleFuelValues = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+    if (isNaN(teleFuel)) return;
+
+    matches.push(`Q${matchNum}`);
+    teleFuelValues.push(teleFuel);
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel data', canvas.width / 2, canvas.height / 2);
+    document.getElementById('weightedTeleFuelAmount').textContent = '0.00';
+    return;
+  }
+
+  // Calculate weighted tele fuel
+  const weightedTeleFuel = (() => {
+    const teleFuelWithMatches = sortedData.map(row => {
+      const matchNum = parseInt(row['Match'] || row['Match Number'] || 0);
+      const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+      return { match: matchNum, value: teleFuel };
+    }).filter(item => !isNaN(item.value) && item.match > 0);
+
+    if (teleFuelWithMatches.length === 0) return 0;
+
+    let totalWeightedValue = 0;
+    let totalWeight = 0;
+
+    teleFuelWithMatches.forEach(item => {
+      let weight;
+      if (item.match <= 2) {
+        weight = 0.5;
+      } else if (item.match <= 6) {
+        weight = 1.0;
+      } else if (item.match <= 8) {
+        weight = 1.5;
+      } else {
+        weight = 2.0;
+      }
+
+      totalWeightedValue += item.value * weight;
+      totalWeight += weight;
+    });
+
+    return totalWeight > 0 ? totalWeightedValue / totalWeight : 0;
+  })();
+
+  // Update the weighted tele fuel display
+  const weightedTeleFuelDisplay = document.getElementById('weightedTeleFuelAmount');
+  if (weightedTeleFuelDisplay) {
+    weightedTeleFuelDisplay.textContent = weightedTeleFuel.toFixed(2);
+  }
+
+  // Create datasets
+  const datasets = [
+    {
+      label: 'Tele Fuel Scored',
+      data: teleFuelValues,
+      borderColor: '#3EDBF0',
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      tension: 0,
+      pointBackgroundColor: '#3EDBF0',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 8,
+      pointHoverRadius: 10,
+      fill: false
+    }
+  ];
+
+  // Add weighted average line if there's data
+  if (weightedTeleFuel > 0) {
+    const weightedLineData = Array(matches.length).fill(weightedTeleFuel);
+    datasets.push({
+      label: 'Weighted Tele Fuel',
+      data: weightedLineData,
+      borderColor: '#FFD700',
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      borderDash: [8, 6],
+      tension: 0,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false
+    });
+  }
+
+  charts.teleFuelWeightedGraph = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: matches,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 30,
+          left: 15,
+          right: 15
+        }
+      },
+      plugins: {
+        legend: {
+          display: false,
+          labels: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 14,
+              weight: 'bold'
+            },
+            usePointStyle: true,
+            pointStyle: 'line'
+          },
+          position: 'top',
+          align: 'center'
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 12,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              if (context.datasetIndex === 0) {
+                return `Tele Fuel: ${context.raw}`;
+              } else {
+                return `Weighted Avg: ${context.raw.toFixed(2)}`;
+              }
+            }
+          }
+        },
+        datalabels: {
+          display: false
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            maxTicksLimit: 10,
+            font: {
+              family: 'Lato',
+              size: 16,
+              weight: 'bold'
+            },
+            stepSize: 5,
+            callback: function (value) {
+              return Math.round(value);
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderTeleClimbChart(teamData) {
@@ -2374,6 +3823,252 @@ function renderTeleClimbChart(teamData) {
   }
 
   const sortedData = [...dataToRender].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const climbValues = [];
+  const barColors = [];
+  const tooltipLevels = [];
+  const tooltipPositions = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const climbTeleop = row['Climb Teleop']?.toString().trim();
+    if (!climbTeleop || climbTeleop === '') return;
+
+    matches.push(`Q${matchNum}`);
+
+    const startingPos = row['Starting Position']?.toString().trim() || '';
+    const positionName = getPositionName(startingPos);
+
+    let yValue = 0;
+    let color = '#3EDBF0';
+    let levelText = '';
+
+    if (climbTeleop === '3') {
+      yValue = 3;
+      color = '#3EDBF0';
+      levelText = 'Level 3';
+    } else if (climbTeleop === '2') {
+      yValue = 2;
+      color = '#3EDBF0';
+      levelText = 'Level 2';
+    } else if (climbTeleop === '1') {
+      yValue = 1;
+      color = '#3EDBF0';
+      levelText = 'Level 1';
+    } else if (climbTeleop === 'F') {
+      yValue = 0.5;
+      color = '#ff5c5c';
+      levelText = 'Failed';
+    } else if (climbTeleop === '0') {
+      yValue = 0;
+      color = '#3EDBF0';
+      levelText = 'Not Attempted';
+    }
+
+    climbValues.push(yValue);
+    barColors.push(color);
+    tooltipLevels.push(levelText);
+    tooltipPositions.push(positionName);
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele climb data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  charts.teleClimbChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: matches,
+      datasets: [{
+        label: 'Tele Climb',
+        data: climbValues,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barPercentage: 1,
+        categoryPercentage: .9,
+        maxBarThickness: 75
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 2,
+      layout: {
+        padding: {
+          bottom: 35,
+          top: 25
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            size: 14,
+            weight: 'bold',
+            family: 'Lato'
+          },
+          bodyFont: {
+            size: 14,
+            family: 'Lato'
+          },
+          callbacks: {
+            label: function (context) {
+              const index = context.dataIndex;
+              const lines = [tooltipLevels[index]];
+
+              if (tooltipPositions[index] && tooltipPositions[index] !== '' && tooltipPositions[index] !== 'Unknown') {
+                lines.push(`Position: ${tooltipPositions[index]}`);
+              }
+
+              return lines;
+            },
+            title: function (context) {
+              return context[0].label;
+            }
+          }
+        },
+        datalabels: {
+          display: false // Ensure no data labels on bars
+        }
+      },
+      scales: {
+        x: {
+          position: 'bottom',
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16, // Increased from 13 to 16
+              weight: 'bold' // Added bold weight
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: matches.length,
+            padding: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: 3,
+          grid: {
+            display: false,
+            drawBorder: false,
+            drawOnChartArea: false,
+            drawTicks: false
+          },
+          ticks: {
+            color: 'white',
+            font: {
+              family: 'Lato',
+              size: 16, // Increased from 13 to 16
+              weight: 'bold' // Added bold weight
+            },
+            stepSize: 1,
+            callback: function (value) {
+              return value;
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+// Also update the comparison tele climb chart for consistency
+function renderComparisonTeleClimbChart(column) {
+  const container = document.querySelector(`.comparison-tele-climb[data-team="${column}"]`);
+  if (container) {
+    container.style.height = '550px';
+    container.style.minHeight = '550px';
+    container.style.maxHeight = '550px';
+  }
+
+  const canvas = document.getElementById(`comparisonTeleClimbChart${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonTeleClimbChart${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  if (!window.comparisonCharts) {
+    window.comparisonCharts = {
+      autoClimb1: null,
+      autoClimb2: null,
+      teleClimb1: null,
+      teleClimb2: null
+    };
+  }
+
+  const chartKey = `teleClimb${column}`;
+  if (window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele climb data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const filterValue = document.getElementById(`comparisonTeleClimbFilter${column}`)?.value || 'all';
+
+  let filteredData = teamData;
+  if (filterValue !== 'all') {
+    filteredData = teamData.filter(row => {
+      const startingPos = row['Starting Position']?.toString().trim();
+      return startingPos === filterValue;
+    });
+  }
+
+  if (filteredData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText(`No tele climb data for ${getPositionName(filterValue)} position`, canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...filteredData].sort((a, b) => {
     const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
     const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
     return matchA - matchB;
@@ -2448,121 +4143,128 @@ function renderTeleClimbChart(teamData) {
     return;
   }
 
-  charts.teleClimbChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: matches,
-      datasets: [{
-        label: 'Tele Climb',
-        data: climbValues,
-        backgroundColor: barColors,
-        borderWidth: 0,
-        borderRadius: 6,
-        barPercentage: 1,
-        categoryPercentage: .9,
-        maxBarThickness: 75
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      devicePixelRatio: 2,
-      layout: {
-        padding: {
-          bottom: 35,
-          top: 25
-        }
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: matches,
+        datasets: [{
+          label: 'Tele Climb',
+          data: climbValues,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          maxBarThickness: 75
+        }]
       },
-      plugins: {
-        legend: {
-          display: false
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 25
+          }
         },
-        tooltip: {
-          backgroundColor: '#1C1E21',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          borderColor: '#000',
-          borderWidth: 1,
-          padding: 10,
-          titleFont: {
-            size: 14,
-            weight: 'bold',
-            family: 'Lato'
+        plugins: {
+          legend: {
+            display: false
           },
-          bodyFont: {
-            size: 14,
-            family: 'Lato'
-          },
-          callbacks: {
-            label: function (context) {
-              const index = context.dataIndex;
-              const lines = [tooltipLevels[index]];
-
-              if (tooltipTimes[index]) {
-                lines.push(tooltipTimes[index]);
-              }
-
-              if (tooltipPositions[index] && tooltipPositions[index] !== '') {
-                lines.push(`Position: ${tooltipPositions[index]}`);
-              }
-
-              return lines;
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 14,
+              weight: 'bold',
+              family: 'Lato'
             },
-            title: function (context) {
-              return context[0].label;
+            bodyFont: {
+              size: 14,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                const index = context.dataIndex;
+                const lines = [tooltipLevels[index]];
+
+                if (tooltipTimes[index]) {
+                  lines.push(tooltipTimes[index]);
+                }
+
+                if (tooltipPositions[index] && tooltipPositions[index] !== '') {
+                  lines.push(`Position: ${tooltipPositions[index]}`);
+                }
+
+                return lines;
+              },
+              title: function (context) {
+                return context[0].label;
+              }
+            }
+          },
+          datalabels: {
+            display: false // This removes the numbers from the top of the bars
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16, // Increased from 13 to 16
+                weight: 'bold' // Added bold weight
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: matches.length,
+              padding: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: 3,
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16, // Increased from 13 to 16
+                weight: 'bold' // Added bold weight
+              },
+              stepSize: 1,
+              callback: function (value) {
+                return value;
+              },
+              padding: 10
             }
           }
         }
-      },
-      scales: {
-        x: {
-          position: 'bottom',
-          grid: {
-            display: false,
-            drawBorder: false,
-            drawOnChartArea: false,
-            drawTicks: false
-          },
-          ticks: {
-            color: 'white',
-            font: {
-              family: 'Lato',
-              size: 13,
-              weight: 'bold'
-            },
-            maxRotation: 0,
-            minRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: matches.length,
-            padding: 10
-          }
-        },
-        y: {
-          beginAtZero: true,
-          max: 3,
-          grid: {
-            display: false,
-            drawBorder: false,
-            drawOnChartArea: false,
-            drawTicks: false
-          },
-          ticks: {
-            color: 'white',
-            font: {
-              family: 'Lato',
-              size: 13,
-              weight: 'bold'
-            },
-            stepSize: 1,
-            callback: function (value) {
-              return value;
-            },
-            padding: 10
-          }
-        }
       }
-    }
-  });
+    });
+  } catch (error) {
+    console.error('Error creating tele climb chart:', error);
+  }
 }
 
 function getPositionName(value) {
@@ -2672,19 +4374,1237 @@ window.comparisonTeamData = {
   1: [],
   2: []
 };
-
-window.comparisonCharts = {
+// Add this to the window.comparisonCharts initialization
+window.comparisonCharts = window.comparisonCharts || {
   autoClimb1: null,
   autoClimb2: null,
   teleClimb1: null,
-  teleClimb2: null
+  teleClimb2: null,
+  autoFuelShot1: null,
+  autoFuelShot2: null,
+  autoFuelFerried1: null,
+  autoFuelFerried2: null,
+  teleFuelShot1: null,
+  teleFuelShot2: null,
+  teleFuelFerried1: null,
+  teleFuelFerried2: null,
+  teleFuelWeighted1: null,  // Add this
+  teleFuelWeighted2: null   // Add this
 };
+
+// Function to calculate global max tele fuel for weighted graphs
+function getGlobalMaxTeleFuelWeighted() {
+  let maxFuel = 0;
+
+  const processTeam = (teamData) => {
+    if (!teamData) return;
+    teamData.forEach(row => {
+      const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+      if (!isNaN(teleFuel)) {
+        maxFuel = Math.max(maxFuel, teleFuel);
+      }
+    });
+  };
+
+  processTeam(window.comparisonTeamData[1]);
+  processTeam(window.comparisonTeamData[2]);
+
+  return maxFuel;
+}
+
+
+function renderComparisonTeleFuelWeightedGraph(column) {
+  const canvas = document.getElementById(`comparisonTeleFuelWeightedGraph${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonTeleFuelWeightedGraph${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const chartKey = `teleFuelWeighted${column}`;
+
+  // Destroy existing chart
+  if (window.comparisonCharts && window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel data', canvas.width / 2, canvas.height / 2);
+
+    // Clear the weighted tele fuel display
+    const displayElement = document.getElementById(`comparisonWeightedTeleFuel${column}`);
+    if (displayElement) displayElement.textContent = '0.00';
+    return;
+  }
+
+  // Sort data by match number
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const teleFuelValues = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+    if (isNaN(teleFuel)) return;
+
+    matches.push(`Q${matchNum}`);
+    teleFuelValues.push(teleFuel);
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel data', canvas.width / 2, canvas.height / 2);
+
+    const displayElement = document.getElementById(`comparisonWeightedTeleFuel${column}`);
+    if (displayElement) displayElement.textContent = '0.00';
+    return;
+  }
+
+  // Calculate weighted tele fuel for this team
+  const weightedTeleFuel = (() => {
+    const teleFuelWithMatches = sortedData.map(row => {
+      const matchNum = parseInt(row['Match'] || row['Match Number'] || 0);
+      const teleFuel = parseFloat(row['Tele Fuel Shot'] || 0);
+      return { match: matchNum, value: teleFuel };
+    }).filter(item => !isNaN(item.value) && item.match > 0);
+
+    if (teleFuelWithMatches.length === 0) return 0;
+
+    let totalWeightedValue = 0;
+    let totalWeight = 0;
+
+    teleFuelWithMatches.forEach(item => {
+      let weight;
+      if (item.match <= 2) {
+        weight = 0.5;
+      } else if (item.match <= 6) {
+        weight = 1.0;
+      } else if (item.match <= 8) {
+        weight = 1.5;
+      } else {
+        weight = 2.0;
+      }
+
+      totalWeightedValue += item.value * weight;
+      totalWeight += weight;
+    });
+
+    return totalWeight > 0 ? totalWeightedValue / totalWeight : 0;
+  })();
+
+  // Update the weighted tele fuel display
+  const displayElement = document.getElementById(`comparisonWeightedTeleFuel${column}`);
+  if (displayElement) {
+    displayElement.textContent = weightedTeleFuel.toFixed(2);
+  }
+
+  // Get global max for y-axis synchronization
+  const globalMax = getGlobalMaxTeleFuelWeighted();
+  const yAxisMax = Math.ceil(globalMax / 5) * 5 || 25; // Round up to nearest 5, default to 25
+
+  // Create datasets
+  const datasets = [
+    {
+      label: 'Tele Fuel Scored',
+      data: teleFuelValues,
+      borderColor: '#3EDBF0',
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      tension: 0,
+      pointBackgroundColor: '#3EDBF0',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      fill: false
+    }
+  ];
+
+  // Add weighted average line if there's data
+  if (weightedTeleFuel > 0) {
+    const weightedLineData = Array(matches.length).fill(weightedTeleFuel);
+    datasets.push({
+      label: 'Weighted Tele Fuel',
+      data: weightedLineData,
+      borderColor: '#FFD700',
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      borderDash: [8, 6],
+      tension: 0,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false
+    });
+  }
+
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: matches,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 30,
+            left: 15,
+            right: 15
+          }
+        },
+        plugins: {
+          legend: {
+            display: false,
+            labels: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              usePointStyle: true,
+              pointStyle: 'line'
+            },
+            position: 'top',
+            align: 'center'
+          },
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 16,
+              weight: 'bold',
+              family: 'Lato'
+            },
+            bodyFont: {
+              size: 16,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                if (context.datasetIndex === 0) {
+                  return `Tele Fuel: ${context.raw}`;
+                } else {
+                  return `Weighted Avg: ${context.raw.toFixed(2)}`;
+                }
+              }
+            }
+          },
+          datalabels: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              padding: 8
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: yAxisMax, // Synchronized y-axis
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              maxTicksLimit: 10,
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              stepSize: 5,
+              callback: function (value) {
+                return Math.round(value);
+              },
+              padding: 8
+            }
+          }
+        }
+      }
+    });
+    console.log(`Tele fuel weighted graph created for column ${column} with y-axis max: ${yAxisMax}`);
+  } catch (error) {
+    console.error('Error creating tele fuel weighted graph:', error);
+  }
+}
+// Function to calculate global max tele fuel ferried across both teams
+function getGlobalMaxTeleFuelFerried() {
+  let maxFerried = 0;
+
+  const processTeam = (teamData) => {
+    if (!teamData) return;
+    teamData.forEach(row => {
+      const teleFuelFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+      if (!isNaN(teleFuelFerried)) {
+        maxFerried = Math.max(maxFerried, teleFuelFerried);
+      }
+    });
+  };
+
+  processTeam(window.comparisonTeamData[1]);
+  processTeam(window.comparisonTeamData[2]);
+
+  return maxFerried;
+}
+
+// Function to render comparison auto fuel shot chart
+function renderComparisonAutoFuelShotChart(column) {
+  const canvas = document.getElementById(`comparisonAutoFuelShotChart${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonAutoFuelShotChart${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const chartKey = `autoFuelShot${column}`;
+
+  // Destroy existing chart
+  if (window.comparisonCharts && window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const filterValue = document.getElementById(`comparisonAutoFuelShotFilter${column}`)?.value || 'all';
+
+  let filteredData = teamData;
+  if (filterValue !== 'all') {
+    filteredData = teamData.filter(row => {
+      const startingPos = row['Starting Position']?.toString().trim();
+      return startingPos === filterValue;
+    });
+  }
+
+  if (filteredData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText(`No data for ${getPositionName(filterValue)}`, canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...filteredData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelShotValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const autoFuelShot = parseFloat(row['Auto Fuel Shot'] || 0);
+    if (isNaN(autoFuelShot)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelShotValues.push(autoFuelShot);
+    barColors.push('#3EDBF0');
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Get global max from both teams for consistent y-axis
+  const globalMax = getGlobalMaxAutoFuelShot();
+  const yAxisMax = Math.ceil(globalMax / 5) * 5 || 30; // Round up to nearest multiple of 5, default to 30
+
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: matches,
+        datasets: [{
+          label: 'Auto Fuel Shot',
+          data: fuelShotValues,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          maxBarThickness: 75
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 25
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 14,
+              weight: 'bold',
+              family: 'Lato'
+            },
+            bodyFont: {
+              size: 14,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                return `Fuel Shots: ${context.raw}`;
+              }
+            }
+          },
+          datalabels: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: matches.length,
+              padding: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: yAxisMax,
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              maxTicksLimit: 6, // Added maxTicksLimit: 6
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              stepSize: 5,
+              callback: function (value) {
+                return Math.round(value);
+              },
+              padding: 10
+            }
+          }
+        }
+      }
+    });
+    console.log(`Auto fuel shot chart created for column ${column} with y-axis max: ${yAxisMax}`);
+  } catch (error) {
+    console.error('Error creating auto fuel shot chart:', error);
+  }
+}
+
+// Function to render comparison auto fuel ferried chart
+function renderComparisonAutoFuelFerriedChart(column) {
+  const canvas = document.getElementById(`comparisonAutoFuelFerriedChart${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonAutoFuelFerriedChart${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const chartKey = `autoFuelFerried${column}`;
+
+  // Destroy existing chart
+  if (window.comparisonCharts && window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const filterValue = document.getElementById(`comparisonAutoFuelFerriedFilter${column}`)?.value || 'all';
+
+  let filteredData = teamData;
+  if (filterValue !== 'all') {
+    filteredData = teamData.filter(row => {
+      const startingPos = row['Starting Position']?.toString().trim();
+      return startingPos === filterValue;
+    });
+  }
+
+  if (filteredData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText(`No data for ${getPositionName(filterValue)}`, canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...filteredData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelFerriedValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const autoFuelFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+    if (isNaN(autoFuelFerried)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelFerriedValues.push(autoFuelFerried);
+    barColors.push('rgb(0, 184, 148)'); // Teal color for ferried
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No auto fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Get global max from both teams for consistent y-axis
+  const globalMax = getGlobalMaxAutoFuelFerried();
+  const yAxisMax = Math.ceil(globalMax / 5) * 5 || 30;
+
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: matches,
+        datasets: [{
+          label: 'Auto Fuel Ferried',
+          data: fuelFerriedValues,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          maxBarThickness: 75
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 25
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 14,
+              weight: 'bold',
+              family: 'Lato'
+            },
+            bodyFont: {
+              size: 14,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                return `Fuel Ferried: ${context.raw}`;
+              }
+            }
+          },
+          datalabels: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: matches.length,
+              padding: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: yAxisMax,
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              maxTicksLimit: 6, // Added maxTicksLimit: 6
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              stepSize: 5,
+              callback: function (value) {
+                return Math.round(value);
+              },
+              padding: 10
+            }
+          }
+        }
+      }
+    });
+    console.log(`Auto fuel ferried chart created for column ${column} with y-axis max: ${yAxisMax}`);
+  } catch (error) {
+    console.error('Error creating auto fuel ferried chart:', error);
+  }
+}
+
+// Function to render comparison tele fuel shot chart
+function renderComparisonTeleFuelShotChart(column) {
+  const canvas = document.getElementById(`comparisonTeleFuelShotChart${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonTeleFuelShotChart${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const chartKey = `teleFuelShot${column}`;
+
+  // Destroy existing chart
+  if (window.comparisonCharts && window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelShotValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuelShot = parseFloat(row['Tele Fuel Shot'] || 0);
+    if (isNaN(teleFuelShot)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelShotValues.push(teleFuelShot);
+    barColors.push('#3EDBF0'); // Blue color for tele fuel shot
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel shot data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Get global max from both teams for consistent y-axis
+  const globalMax = getGlobalMaxTeleFuelShot();
+  const yAxisMax = Math.ceil(globalMax / 5) * 5 || 30; // Round up to nearest multiple of 5, default to 30
+
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: matches,
+        datasets: [{
+          label: 'Tele Fuel Shot',
+          data: fuelShotValues,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          maxBarThickness: 75
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 25
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 14,
+              weight: 'bold',
+              family: 'Lato'
+            },
+            bodyFont: {
+              size: 14,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                return `Fuel Shots: ${context.raw}`;
+              }
+            }
+          },
+          datalabels: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: matches.length,
+              padding: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: yAxisMax,
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              maxTicksLimit: 6, // Added maxTicksLimit: 6
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              stepSize: 5,
+              callback: function (value) {
+                return Math.round(value);
+              },
+              padding: 10
+            }
+          }
+        }
+      }
+    });
+    console.log(`Tele fuel shot chart created for column ${column} with y-axis max: ${yAxisMax}`);
+  } catch (error) {
+    console.error('Error creating tele fuel shot chart:', error);
+  }
+}
+
+// Function to render comparison tele fuel ferried chart
+function renderComparisonTeleFuelFerriedChart(column) {
+  const canvas = document.getElementById(`comparisonTeleFuelFerriedChart${column}`);
+  if (!canvas) {
+    console.error(`Canvas comparisonTeleFuelFerriedChart${column} not found`);
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const chartKey = `teleFuelFerried${column}`;
+
+  // Destroy existing chart
+  if (window.comparisonCharts && window.comparisonCharts[chartKey]) {
+    try {
+      window.comparisonCharts[chartKey].destroy();
+    } catch (e) {
+      console.log('Error destroying chart:', e);
+    }
+    window.comparisonCharts[chartKey] = null;
+  }
+
+  const teamData = window.comparisonTeamData[column];
+  if (!teamData || teamData.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const sortedData = [...teamData].sort((a, b) => {
+    const matchA = parseInt(a['Match'] || a['Match Number'] || 0);
+    const matchB = parseInt(b['Match'] || b['Match Number'] || 0);
+    return matchA - matchB;
+  });
+
+  const matches = [];
+  const fuelFerriedValues = [];
+  const barColors = [];
+
+  sortedData.forEach(row => {
+    const matchNum = row['Match'] || row['Match Number'];
+    if (!matchNum) return;
+
+    const teleFuelFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+    if (isNaN(teleFuelFerried)) return;
+
+    matches.push(`Q${matchNum}`);
+    fuelFerriedValues.push(teleFuelFerried);
+    barColors.push('rgb(0, 184, 148)'); // Teal color for ferried
+  });
+
+  if (matches.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '16px Lato';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('No tele fuel ferried data', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Get global max from both teams for consistent y-axis
+  const globalMax = getGlobalMaxTeleFuelFerried();
+  const yAxisMax = Math.ceil(globalMax / 5) * 5 || 30; // Round up to nearest multiple of 5, default to 30
+
+  try {
+    window.comparisonCharts[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: matches,
+        datasets: [{
+          label: 'Tele Fuel Ferried',
+          data: fuelFerriedValues,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          maxBarThickness: 75
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2,
+        layout: {
+          padding: {
+            bottom: 35,
+            top: 25
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#1C1E21',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#000',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: {
+              size: 14,
+              weight: 'bold',
+              family: 'Lato'
+            },
+            bodyFont: {
+              size: 14,
+              family: 'Lato'
+            },
+            callbacks: {
+              label: function (context) {
+                return `Fuel Ferried: ${context.raw}`;
+              }
+            }
+          },
+          datalabels: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            position: 'bottom',
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: matches.length,
+              padding: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: yAxisMax,
+            grid: {
+              display: false,
+              drawBorder: false,
+              drawOnChartArea: false,
+              drawTicks: false
+            },
+            ticks: {
+              color: 'white',
+              maxTicksLimit: 6, 
+              font: {
+                family: 'Lato',
+                size: 16,
+                weight: 'bold'
+              },
+              stepSize: 5,
+              callback: function (value) {
+                return Math.round(value);
+              },
+              padding: 10
+            }
+          }
+        }
+      }
+    });
+    console.log(`Tele fuel ferried chart created for column ${column} with y-axis max: ${yAxisMax}`);
+  } catch (error) {
+    console.error('Error creating tele fuel ferried chart:', error);
+  }
+}
+
+function getGlobalMaxAutoFuelFerried() {
+  let maxFerried = 0;
+
+  const processTeam = (teamData) => {
+    if (!teamData) return;
+    teamData.forEach(row => {
+      const autoFuelFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+      if (!isNaN(autoFuelFerried)) {
+        maxFerried = Math.max(maxFerried, autoFuelFerried);
+      }
+    });
+  };
+
+  processTeam(window.comparisonTeamData[1]);
+  processTeam(window.comparisonTeamData[2]);
+
+  return maxFerried;
+}
+
+
+function syncComparisonAutoFuelFerriedDropdowns(value, sourceColumn) {
+  const dropdown1 = document.getElementById('comparisonAutoFuelFerriedFilter1');
+  const dropdown2 = document.getElementById('comparisonAutoFuelFerriedFilter2');
+
+  if (!dropdown1 || !dropdown2) return;
+
+  if (sourceColumn === 1) {
+    dropdown2.value = value;
+  } else if (sourceColumn === 2) {
+    dropdown1.value = value;
+  }
+
+  renderComparisonAutoFuelFerriedChart(1);
+  renderComparisonAutoFuelFerriedChart(2);
+}
+
+// Unified function to sync all auto dropdowns in comparison view
+function syncAllComparisonAutoDropdowns(value, sourceColumn, sourceType) {
+  // Get all dropdowns
+  const autoPath1 = document.getElementById('comparisonAutoPathFilter1');
+  const autoPath2 = document.getElementById('comparisonAutoPathFilter2');
+  const autoClimb1 = document.getElementById('comparisonAutoClimbFilter1');
+  const autoClimb2 = document.getElementById('comparisonAutoClimbFilter2');
+  const autoFuelShot1 = document.getElementById('comparisonAutoFuelShotFilter1');
+  const autoFuelShot2 = document.getElementById('comparisonAutoFuelShotFilter2');
+  const autoFuelFerried1 = document.getElementById('comparisonAutoFuelFerriedFilter1');
+  const autoFuelFerried2 = document.getElementById('comparisonAutoFuelFerriedFilter2');
+
+  // Sync all dropdowns regardless of source
+  if (autoPath1 && autoPath2) {
+    autoPath1.value = value;
+    autoPath2.value = value;
+  }
+
+  if (autoClimb1 && autoClimb2) {
+    autoClimb1.value = value;
+    autoClimb2.value = value;
+  }
+
+  if (autoFuelShot1 && autoFuelShot2) {
+    autoFuelShot1.value = value;
+    autoFuelShot2.value = value;
+  }
+
+  if (autoFuelFerried1 && autoFuelFerried2) {
+    autoFuelFerried1.value = value;
+    autoFuelFerried2.value = value;
+  }
+
+  // Re-render all auto-related charts for both columns
+  displayAutoPaths(1);
+  displayAutoPaths(2);
+  renderComparisonAutoClimbChart(1);
+  renderComparisonAutoClimbChart(2);
+  renderComparisonAutoFuelShotChart(1);
+  renderComparisonAutoFuelShotChart(2);
+  renderComparisonAutoFuelFerriedChart(1);
+  renderComparisonAutoFuelFerriedChart(2);
+}
+
+// Individual filter functions that call the unified sync
+function filterComparisonAutoPaths(column) {
+  const currentValue = document.getElementById(`comparisonAutoPathFilter${column}`).value;
+  syncAllComparisonAutoDropdowns(currentValue, column, 'path');
+}
+
+function filterComparisonAutoClimb(column) {
+  const currentValue = document.getElementById(`comparisonAutoClimbFilter${column}`).value;
+  syncAllComparisonAutoDropdowns(currentValue, column, 'climb');
+}
+
+function filterComparisonAutoFuelShot(column) {
+  const currentValue = document.getElementById(`comparisonAutoFuelShotFilter${column}`).value;
+  syncAllComparisonAutoDropdowns(currentValue, column, 'fuelShot');
+}
+
+function filterComparisonAutoFuelFerried(column) {
+  const currentValue = document.getElementById(`comparisonAutoFuelFerriedFilter${column}`).value;
+  syncAllComparisonAutoDropdowns(currentValue, column, 'fuelFerried');
+}
+
+// Initialize all dropdowns with the unified sync
+function initializeAllAutoDropdownSync() {
+  const dropdownConfigs = [
+    { id: 'comparisonAutoPathFilter1', type: 'path', column: 1 },
+    { id: 'comparisonAutoPathFilter2', type: 'path', column: 2 },
+    { id: 'comparisonAutoClimbFilter1', type: 'climb', column: 1 },
+    { id: 'comparisonAutoClimbFilter2', type: 'climb', column: 2 },
+    { id: 'comparisonAutoFuelShotFilter1', type: 'fuelShot', column: 1 },
+    { id: 'comparisonAutoFuelShotFilter2', type: 'fuelShot', column: 2 },
+    { id: 'comparisonAutoFuelFerriedFilter1', type: 'fuelFerried', column: 1 },
+    { id: 'comparisonAutoFuelFerriedFilter2', type: 'fuelFerried', column: 2 }
+  ];
+
+  dropdownConfigs.forEach(config => {
+    const element = document.getElementById(config.id);
+    if (element) {
+      // Remove old event listeners
+      element.removeEventListener('change', window[`${config.id}Handler`]);
+
+      // Create new handler
+      const handler = function (e) {
+        syncAllComparisonAutoDropdowns(this.value, config.column, config.type);
+      };
+
+      // Store handler for potential removal
+      window[`${config.id}Handler`] = handler;
+
+      // Add new event listener
+      element.addEventListener('change', handler);
+    }
+  });
+}
+// Function to calculate global max tele fuel shot across both teams
+function getGlobalMaxTeleFuelShot() {
+  let maxShot = 0;
+
+  const processTeam = (teamData) => {
+    if (!teamData) return;
+    teamData.forEach(row => {
+      const teleFuelShot = parseFloat(row['Tele Fuel Shot'] || 0);
+      if (!isNaN(teleFuelShot)) {
+        maxShot = Math.max(maxShot, teleFuelShot);
+      }
+    });
+  };
+
+  processTeam(window.comparisonTeamData[1]);
+  processTeam(window.comparisonTeamData[2]);
+
+  return maxShot;
+}
 
 function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
   if (!teamData || teamData.length === 0) return;
 
   const teamNumber = teamData[0]['Team Number']?.toString().trim();
 
+  // Robot stats from pit scouting
   let hasTrench = false;
   let hasGroundIntake = false;
   let hasShootOnFly = false;
@@ -2706,29 +5626,26 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
   document.getElementById(`comparisonGroundIntake${column}`).textContent = hasGroundIntake ? '✅' : '❌';
   document.getElementById(`comparisonShootOnFly${column}`).textContent = hasShootOnFly ? '✅' : '❌';
 
+  // Calculate Average Shot (combining auto and tele fuel shots)
+  const autoFuelShots = teamData.map(row => parseFloat(row['Auto Fuel Shot'] || 0)).filter(v => !isNaN(v));
+  const teleFuelShots = teamData.map(row => parseFloat(row['Tele Fuel Shot'] || 0)).filter(v => !isNaN(v));
+  const allShots = [...autoFuelShots, ...teleFuelShots];
+  const avgShot = allShots.length > 0 ? allShots.reduce((a, b) => a + b, 0) / allShots.length : 0;
+  document.getElementById(`comparisonAvgShot${column}`).textContent = avgShot.toFixed(2);
+
+  // Calculate Average Ferried (combining auto and tele fuel ferried)
+  const autoFuelFerried = teamData.map(row => parseFloat(row['Auto Fuel Ferried'] || 0)).filter(v => !isNaN(v));
+  const teleFuelFerried = teamData.map(row => parseFloat(row['Tele Fuel Ferried'] || 0)).filter(v => !isNaN(v));
+  const allFerried = [...autoFuelFerried, ...teleFuelFerried];
+  const avgFerried = allFerried.length > 0 ? allFerried.reduce((a, b) => a + b, 0) / allFerried.length : 0;
+  document.getElementById(`comparisonAvgFerried${column}`).textContent = avgFerried.toFixed(2);
+
+  // Calculate EPA (average of total points only - no OPR)
   const totalPoints = teamData.map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0)).filter(v => !isNaN(v));
-  const avgTotalPoints = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
+  const epa = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
+  document.getElementById(`comparisonEPA${column}`).textContent = epa.toFixed(2);
 
-  let autoOPR = 0;
-  let teleOPR = 0;
-  let totalOPR = 0;
-
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    const oprData = parsed.data.find(row => {
-      const teamNum = row['Team Number']?.toString().trim();
-      return teamNum === teamNumber;
-    });
-
-    if (oprData) {
-      autoOPR = parseFloat((oprData['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      teleOPR = parseFloat((oprData['Tele OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      totalOPR = parseFloat((oprData['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-    }
-  }
-
-  const epa = Math.round((avgTotalPoints + totalOPR) * 10) / 10;
-
+  // Calculate Shooting Accuracy
   const shootingAccuracy = (() => {
     const accuracyVals = teamData
       .map(row => parseFloat(row['Shooting Accuracy']))
@@ -2737,39 +5654,26 @@ function renderComparisonTeamStatistics(teamData, pitScoutingData, column) {
       ? (accuracyVals.reduce((a, b) => a + b, 0) / accuracyVals.length).toFixed(2)
       : '0.00';
   })();
-
-  document.getElementById(`comparisonEPA${column}`).textContent = epa.toFixed(1);
-  document.getElementById(`comparisonTotalOPR${column}`).textContent = totalOPR.toFixed(2);
   document.getElementById(`comparisonShootingAccuracy${column}`).textContent = shootingAccuracy;
 
-  const climbTimeVals = teamData
-    .map(row => parseFloat(row['Climb Time per Level']))
-    .filter(v => !isNaN(v) && v > 0);
-
-  let climbTimePerLevel = 0;
-  if (climbTimeVals.length > 0) {
-    climbTimePerLevel = climbTimeVals.reduce((a, b) => a + b, 0) / climbTimeVals.length;
-    climbTimePerLevel = Math.round(climbTimePerLevel * 10) / 10;
-  }
-  document.getElementById(`comparisonClimbTime${column}`).textContent = climbTimePerLevel.toFixed(2);
-
+  // Calculate Climb Success %
   const climbValues = teamData.map(row => row['Climb Teleop']?.toString().trim()).filter(v => v && v !== '');
-
   const successfulClimbs = climbValues.filter(v => ['1', '2', '3'].includes(v)).length;
   const totalClimbAttempts = climbValues.filter(v => ['1', '2', '3', 'F'].includes(v)).length;
-
   const climbSuccessRate = totalClimbAttempts > 0 ? ((successfulClimbs / totalClimbAttempts) * 100).toFixed(1) : "0.0";
   document.getElementById(`comparisonClimbRate${column}`).textContent = climbSuccessRate;
 
+  // Calculate Robot Died %
   const diedCount = teamData.filter(row => {
     const val = parseFloat(row['Robot Died'] || row['Died or Immobilized'] || 0);
     return val === 0.5 || val === 1;
   }).length;
   const robotDiedRate = teamData.length ? ((diedCount / teamData.length) * 100).toFixed(1) : '0.0';
   document.getElementById(`comparisonDiedRate${column}`).textContent = robotDiedRate;
+
+  // Removed climb time calculation and setting
 }
 async function searchComparison(column) {
-
   if (!window.comparisonTeamData) {
     window.comparisonTeamData = { 1: [], 2: [] };
   }
@@ -2778,19 +5682,27 @@ async function searchComparison(column) {
       autoClimb1: null,
       autoClimb2: null,
       teleClimb1: null,
-      teleClimb2: null
+      teleClimb2: null,
+      autoFuelShot1: null,
+      autoFuelShot2: null,
+      teleFuelShot1: null,
+      teleFuelShot2: null,
+      autoFuelFerried1: null,
+      autoFuelFerried2: null,
+      teleFuelFerried1: null,
+      teleFuelFerried2: null,
+      teleFuelWeighted1: null,
+      teleFuelWeighted2: null
     };
   }
 
   const inputElement = document.getElementById(`comparisonSearch${column}`);
-
   if (!inputElement) {
     console.error(`Input element comparisonSearch${column} not found!`);
     return;
   }
 
   const teamNumber = inputElement.value.trim();
-
   if (!teamNumber) {
     console.log('No team number entered');
     return;
@@ -2806,6 +5718,7 @@ async function searchComparison(column) {
       nicknameElement.textContent = `Team ${teamNumber}`;
     }
   }
+
   if (!csvText || csvText.length === 0) {
     console.error("No CSV data loaded!");
     alert("Please upload event data CSV first");
@@ -2848,6 +5761,17 @@ async function searchComparison(column) {
       ctx.textAlign = 'center';
       ctx.fillText('No data', canvas.width / 2, canvas.height / 2);
     }
+
+    // Clear auto fuel shot chart
+    const fuelCanvas = document.getElementById(`comparisonAutoFuelShotChart${column}`);
+    if (fuelCanvas) {
+      const ctx = fuelCanvas.getContext('2d');
+      ctx.clearRect(0, 0, fuelCanvas.width, fuelCanvas.height);
+      ctx.font = '16px Lato';
+      ctx.fillStyle = '#aaa';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data', fuelCanvas.width / 2, fuelCanvas.height / 2);
+    }
     return;
   }
 
@@ -2859,11 +5783,32 @@ async function searchComparison(column) {
 
   displayAutoPaths(column);
   displayScouterComments(column);
-  renderComparisonAutoClimbChart(column);
-  renderComparisonTeleClimbChart(column);
 
+  // Reset filters to 'all' for the searched team
   document.getElementById(`comparisonAutoPathFilter${column}`).value = 'all';
   document.getElementById(`comparisonAutoClimbFilter${column}`).value = 'all';
+  document.getElementById(`comparisonAutoFuelShotFilter${column}`).value = 'all';
+  document.getElementById(`comparisonAutoFuelFerriedFilter${column}`).value = 'all'; // Add this line
+
+
+  // Render charts for both teams to ensure y-axis sync
+  renderComparisonAutoClimbChart(1);
+  renderComparisonAutoClimbChart(2);
+  renderComparisonTeleClimbChart(1);
+  renderComparisonTeleClimbChart(2);
+  renderComparisonAutoFuelShotChart(1);
+  renderComparisonAutoFuelShotChart(2);
+  // Add this after rendering auto fuel shot charts
+  renderComparisonAutoFuelFerriedChart(1);
+  renderComparisonAutoFuelFerriedChart(2);
+  renderComparisonTeleFuelShotChart(1);
+  renderComparisonTeleFuelShotChart(2);
+  // Add these lines after the tele fuel shot chart render calls
+  renderComparisonTeleFuelFerriedChart(1);
+  renderComparisonTeleFuelFerriedChart(2);
+  // At the end of searchComparison function, add:
+  renderComparisonTeleFuelWeightedGraph(1);
+  renderComparisonTeleFuelWeightedGraph(2);
 }
 
 function displayAutoPaths(column) {
@@ -3227,6 +6172,9 @@ function renderComparisonTeleClimbChart(column) {
                 return context[0].label;
               }
             }
+          },
+          datalabels: {
+            display: false // This removes the numbers from the top of the bars
           }
         },
         scales: {
@@ -3282,7 +6230,6 @@ function renderComparisonTeleClimbChart(column) {
     console.error('Error creating tele climb chart:', error);
   }
 }
-
 function renderComparisonAutoClimbChart(column) {
 
   const container = document.querySelector(`.comparison-auto-climb[data-team="${column}"]`);
@@ -3455,6 +6402,9 @@ function renderComparisonAutoClimbChart(column) {
                 return context[0].label;
               }
             }
+          },
+          datalabels: {
+            display: false // This ensures no data labels on bars
           }
         },
         scales: {
@@ -3570,79 +6520,43 @@ function filterComparisonTeleClimb(column) {
   renderComparisonTeleClimbChart(2);
 }
 
-function syncComparisonAutoDropdowns(value, sourceType, sourceColumn) {
-  const autoPath1 = document.getElementById('comparisonAutoPathFilter1');
-  const autoPath2 = document.getElementById('comparisonAutoPathFilter2');
-  const autoClimb1 = document.getElementById('comparisonAutoClimbFilter1');
-  const autoClimb2 = document.getElementById('comparisonAutoClimbFilter2');
+// Function to calculate global max auto fuel shot across both teams
+function getGlobalMaxAutoFuelShot() {
+  let maxShot = 0;
 
-  if (!autoPath1 || !autoPath2 || !autoClimb1 || !autoClimb2) return;
+  const processTeam = (teamData) => {
+    if (!teamData) return;
+    teamData.forEach(row => {
+      const autoFuelShot = parseFloat(row['Auto Fuel Shot'] || 0);
+      if (!isNaN(autoFuelShot)) {
+        maxShot = Math.max(maxShot, autoFuelShot);
+      }
+    });
+  };
 
-  autoPath1.value = value;
-  autoPath2.value = value;
-  autoClimb1.value = value;
-  autoClimb2.value = value;
+  processTeam(window.comparisonTeamData[1]);
+  processTeam(window.comparisonTeamData[2]);
 
-  displayAutoPaths(1);
-  displayAutoPaths(2);
-  renderComparisonAutoClimbChart(1);
-  renderComparisonAutoClimbChart(2);
+  return maxShot;
 }
 
+// Function to sync auto fuel shot dropdowns
+function syncComparisonAutoFuelShotDropdowns(value, sourceColumn) {
+  const dropdown1 = document.getElementById('comparisonAutoFuelShotFilter1');
+  const dropdown2 = document.getElementById('comparisonAutoFuelShotFilter2');
 
-function initializeAutoDropdownSync() {
-  const autoPath1 = document.getElementById('comparisonAutoPathFilter1');
-  const autoPath2 = document.getElementById('comparisonAutoPathFilter2');
+  if (!dropdown1 || !dropdown2) return;
 
-  const autoClimb1 = document.getElementById('comparisonAutoClimbFilter1');
-  const autoClimb2 = document.getElementById('comparisonAutoClimbFilter2');
-
-  if (autoPath1) {
-    autoPath1.removeEventListener('change', window.autoPathHandler1);
-    window.autoPathHandler1 = function (e) {
-      const value = this.value;
-      syncComparisonAutoDropdowns(value, 'path', 1);
-    };
-    autoPath1.addEventListener('change', window.autoPathHandler1);
+  if (sourceColumn === 1) {
+    dropdown2.value = value;
+  } else if (sourceColumn === 2) {
+    dropdown1.value = value;
   }
 
-  if (autoPath2) {
-    autoPath2.removeEventListener('change', window.autoPathHandler2);
-    window.autoPathHandler2 = function (e) {
-      const value = this.value;
-      syncComparisonAutoDropdowns(value, 'path', 2);
-    };
-    autoPath2.addEventListener('change', window.autoPathHandler2);
-  }
-
-  if (autoClimb1) {
-    autoClimb1.removeEventListener('change', window.autoClimbHandler1);
-    window.autoClimbHandler1 = function (e) {
-      const value = this.value;
-      syncComparisonAutoDropdowns(value, 'climb', 1);
-    };
-    autoClimb1.addEventListener('change', window.autoClimbHandler1);
-  }
-
-  if (autoClimb2) {
-    autoClimb2.removeEventListener('change', window.autoClimbHandler2);
-    window.autoClimbHandler2 = function (e) {
-      const value = this.value;
-      syncComparisonAutoDropdowns(value, 'climb', 2);
-    };
-    autoClimb2.addEventListener('change', window.autoClimbHandler2);
-  }
+  renderComparisonAutoFuelShotChart(1);
+  renderComparisonAutoFuelShotChart(2);
 }
 
-function filterComparisonAutoPaths(column) {
-  const currentValue = document.getElementById(`comparisonAutoPathFilter${column}`).value;
-  syncComparisonAutoDropdowns(currentValue, 'path', column);
-}
-
-function filterComparisonAutoClimb(column) {
-  const currentValue = document.getElementById(`comparisonAutoClimbFilter${column}`).value;
-  syncComparisonAutoDropdowns(currentValue, 'climb', column);
-}
 
 function getPositionName(value) {
   switch (value) {
@@ -3763,6 +6677,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  const autoFuelShotFilter1 = document.getElementById('comparisonAutoFuelShotFilter1');
+  const autoFuelShotFilter2 = document.getElementById('comparisonAutoFuelShotFilter2');
+
+  if (autoFuelShotFilter1) {
+    autoFuelShotFilter1.addEventListener('change', function () {
+      filterComparisonAutoFuelShot(1);
+    });
+  }
+
+  if (autoFuelShotFilter2) {
+    autoFuelShotFilter2.addEventListener('change', function () {
+      filterComparisonAutoFuelShot(2);
+    });
+  }
+
+  // Initialize auto fuel ferried dropdown sync
+  const autoFuelFerriedFilter1 = document.getElementById('comparisonAutoFuelFerriedFilter1');
+  const autoFuelFerriedFilter2 = document.getElementById('comparisonAutoFuelFerriedFilter2');
+
+  if (autoFuelFerriedFilter1) {
+    autoFuelFerriedFilter1.addEventListener('change', function () {
+      filterComparisonAutoFuelFerried(1);
+    });
+  }
+
+  if (autoFuelFerriedFilter2) {
+    autoFuelFerriedFilter2.addEventListener('change', function () {
+      filterComparisonAutoFuelFerried(2);
+    });
+  }
   const autoClimbFilter1 = document.getElementById('comparisonAutoClimbFilter1');
   if (autoClimbFilter1) {
     autoClimbFilter1.addEventListener('change', function () {
@@ -3818,7 +6762,8 @@ function getChartClickHandler() {
 
 function updateOverviewCharts() {
   const parsedData = parseCSV();
-  renderFuelOprChart();
+  renderFuelShotChart();
+  renderFuelFerriedChart(); // Add this line
   renderOverviewStackedChart(parsedData.data);
 }
 
@@ -3847,7 +6792,7 @@ function renderOverviewStackedChart(data) {
   data.forEach(row => {
     const team = row['Team Number']?.toString().trim();
     if (!team) return;
-    const points = parseFloat(row['Total Points']) || 0;
+    const points = parseFloat(row['Total Points'] || row['Total Score'] || 0);
     if (!teamTotals[team]) {
       teamTotals[team] = { sum: 0, matches: 0 };
     }
@@ -3855,28 +6800,12 @@ function renderOverviewStackedChart(data) {
     teamTotals[team].matches += 1;
   });
 
-  const oprTotals = {};
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, {
-      header: true,
-      skipEmptyLines: true
-    });
-    parsed.data.forEach(row => {
-      const team = row['Team Number']?.toString().trim();
-      if (!team) return;
-      const opr = parseFloat(
-        (row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')
-      ) || 0;
-      oprTotals[team] = opr;
-    });
-  }
-
+  // Calculate EPA as average of total points only (no OPR)
   const scores = Object.keys(teamTotals).map(team => {
     const avgPoints = teamTotals[team].matches > 0
       ? teamTotals[team].sum / teamTotals[team].matches
       : 0;
-    const opr = oprTotals[team] || 0;
-    return { team, epa: avgPoints + opr };
+    return { team, epa: avgPoints };
   });
 
   if (scores.length === 0) {
@@ -3896,7 +6825,7 @@ function renderOverviewStackedChart(data) {
     margin-top: 20px;
   `;
 
-  const barWidth = 75; 
+  const barWidth = 75;
   const spacing = 15;
   const totalWidth = Math.max(800, scores.length * (barWidth + spacing));
 
@@ -3929,102 +6858,100 @@ function renderOverviewStackedChart(data) {
     return '#3EDBF0';
   });
 
-charts.overviewStackedChart = new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels,
-    datasets: [{
-      label: 'EPA',
-      data: epaData,
-      backgroundColor: barColors,
-      borderWidth: 0,
-      borderRadius: 6,
-      barThickness: 75, 
-      hoverBackgroundColor: barColors.map(color => color + '80')
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    devicePixelRatio: 3,
-    onClick: getChartClickHandler(),
-    layout: {
-      padding: {
-        top: 20,
-        bottom: 10,
-        left: 20,
-        right: 20
-      }
+  charts.overviewStackedChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'EPA',
+        data: epaData,
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 6,
+        barThickness: 75,
+        hoverBackgroundColor: barColors.map(color => color + '80')
+      }]
     },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: true,
-        callbacks: {
-          title: function(context) {
-            const idx = context[0].dataIndex;
-            return `Team ${scores[idx].team}`;
-          },
-          label: function(context) {
-            const idx = context.dataIndex;
-            const rank = idx + 1;
-            return [
-              `Rank: ${rank}`,
-              `EPA: ${scores[idx].epa.toFixed(2)}`
-            ];
-          }
-        },
-        backgroundColor: '#1C1E21',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        borderColor: '#000',
-        borderWidth: 1,
-        titleFont: { family: 'Lato', size: 14 },
-        bodyFont: { family: 'Lato', size: 14 },
-        padding: 10
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 3,
+      onClick: getChartClickHandler(),
+      layout: {
+        padding: {
+          top: 30,
+          bottom: 10,
+          left: 20,
+          right: 20
+        }
       },
-      datalabels: {
-        display: true,
-        color: 'white',
-        anchor: 'end',
-        align: 'top',
-        offset: 4,
-        font: {
-          family: 'Lato',
-          size: 12,
-          weight: 'bold'
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            title: function (context) {
+              const idx = context[0].dataIndex;
+              return `Team ${scores[idx].team}`;
+            },
+            label: function (context) {
+              const idx = context.dataIndex;
+              const rank = idx + 1;
+              return [
+                `Rank: ${rank}`,
+                `EPA: ${scores[idx].epa.toFixed(2)}`
+              ];
+            }
+          },
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          titleFont: { family: 'Lato', size: 14 },
+          bodyFont: { family: 'Lato', size: 14 },
+          padding: 10
         },
-        formatter: function(value) {
-          return value.toFixed(1);
+        datalabels: {
+          display: true,
+          color: 'white',
+          anchor: 'end',
+          align: 'top',
+          offset: 4,
+          font: {
+            family: 'Lato',
+            size: 16,
+            weight: 'bold'
+          },
+          formatter: function (value) {
+            return value.toFixed(1);
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            autoSkip: false
+          },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            stepSize: 25,
+            callback: function (value) {
+              return Math.round(value);
+            }
+          },
+          grid: { display: false }
         }
       }
-    },
-    scales: {
-      x: {
-        ticks: {
-          color: 'white',
-          maxRotation: 45,
-          minRotation: 45,
-          font: { family: 'Lato', size: 12, weight: 'bold' },
-          autoSkip: false
-        },
-        grid: { display: false }
-      },
-      y: {
-        beginAtZero: true,
-        ticks: {
-          color: 'white',
-          font: { family: 'Lato', size: 14, weight: 'bold' },
-          stepSize: 25,
-          callback: function(value) {
-            return Math.round(value);
-          }
-        },
-        grid: { display: false }
-      }
     }
-  }
-});
+  });
 
   if (charts.overviewStackedChart) {
     charts.overviewStackedChart.data.labels = cleanLabels;
@@ -4032,7 +6959,7 @@ charts.overviewStackedChart = new Chart(ctx, {
   }
 }
 
-function renderFuelOprChart() {
+function renderFuelShotChart() {
   const canvas = document.getElementById('fuelOprChart');
   if (!canvas) return;
 
@@ -4048,193 +6975,486 @@ function renderFuelOprChart() {
     charts['fuelOprChart'] = null;
   }
 
-  if (!oprCsvText || oprCsvText.trim().length === 0) {
-    renderBlankChart('fuelOprChart', 'No OPR data');
+  // Parse event data
+  const parsed = parseCSV();
+  const data = parsed && parsed.data ? parsed.data : [];
+
+  if (!data || data.length === 0) {
+    renderBlankChart('fuelOprChart', 'No Data');
     return;
   }
 
-  try {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    const rows = parsed && parsed.data ? parsed.data : [];
-    if (!rows || rows.length === 0) {
-      renderBlankChart('fuelOprChart', 'No OPR data');
-      return;
+  // Calculate average auto and tele fuel shots per team
+  const teamStats = {};
+
+  data.forEach(row => {
+    const team = row['Team Number']?.toString().trim();
+    if (!team) return;
+
+    const autoShot = parseFloat(row['Auto Fuel Shot'] || 0);
+    const teleShot = parseFloat(row['Tele Fuel Shot'] || 0);
+
+    if (isNaN(autoShot) || isNaN(teleShot)) return;
+
+    if (!teamStats[team]) {
+      teamStats[team] = {
+        autoSum: 0,
+        teleSum: 0,
+        matchCount: 0
+      };
     }
 
-    const sample = rows.find(r => Object.keys(r).length > 0) || {};
-    const fields = Object.keys(sample);
-    const teamCandidates = ['Team Number', 'Team No.', 'Team No', 'Team', 'team', 'TeamNumber', 'team_number'];
-    const oprCandidates = ['Total OPR', 'OPR', 'TotalOPR', 'Total OPR '];
+    teamStats[team].autoSum += autoShot;
+    teamStats[team].teleSum += teleShot;
+    teamStats[team].matchCount += 1;
+  });
 
-    let teamKey = fields.find(f => teamCandidates.includes(f));
-    let oprKey = fields.find(f => oprCandidates.includes(f));
+  // Calculate averages and prepare data for chart
+  const teams = Object.keys(teamStats).map(team => {
+    const stats = teamStats[team];
+    const avgAuto = stats.matchCount > 0 ? stats.autoSum / stats.matchCount : 0;
+    const avgTele = stats.matchCount > 0 ? stats.teleSum / stats.matchCount : 0;
+    return {
+      team,
+      auto: avgAuto,
+      tele: avgTele,
+      total: avgAuto + avgTele
+    };
+  });
 
-    if (!teamKey) teamKey = fields.find(f => f.toLowerCase().includes('team'));
-    if (!oprKey) oprKey = fields.find(f => f.toLowerCase().includes('opr'));
+  if (teams.length === 0) {
+    renderBlankChart('fuelOprChart', 'No Fuel Shot Data');
+    return;
+  }
 
-    if (!teamKey || !oprKey) {
-      renderBlankChart('fuelOprChart', 'No OPR columns found');
-      return;
-    }
+  // Sort by total fuel shots
+  teams.sort((a, b) => b.total - a.total);
 
-    const entries = rows.map(r => {
-      const t = (r[teamKey] || '').toString().trim();
-      const raw = (r[oprKey] || '').toString();
-      const v = parseFloat(raw.replace(/[^0-9.-]+/g, '')) || 0;
-      return { team: t, value: v };
-    }).filter(e => e.team);
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.style.cssText = `
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    margin-top: 20px;
+  `;
 
-    if (entries.length === 0) {
-      renderBlankChart('fuelOprChart', 'No OPR data');
-      return;
-    }
+  const barWidth = 75;
+  const spacing = 15;
+  const totalWidth = Math.max(800, teams.length * (barWidth + spacing));
 
-    const sorted = entries.sort((a, b) => b.value - a.value);
+  const canvasContainer = document.createElement('div');
+  canvasContainer.style.cssText = `
+    width: ${totalWidth}px;
+    height: 650px;
+    position: relative;
+  `;
 
-    const scrollWrapper = document.createElement('div');
-    scrollWrapper.style.cssText = `
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      position: relative;
-      margin-top: 20px;
-    `;
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'fuelOprChart';
+  newCanvas.style.cssText = `
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  `;
 
-    const barWidth = 75; 
-    const spacing = 15;
-    const totalWidth = Math.max(800, sorted.length * (barWidth + spacing));
+  canvasContainer.appendChild(newCanvas);
+  scrollWrapper.appendChild(canvasContainer);
+  container.appendChild(scrollWrapper);
 
-    const canvasContainer = document.createElement('div');
-    canvasContainer.style.cssText = `
-      width: ${totalWidth}px;
-      height: 650px;
-      position: relative;
-    `;
+  const ctx = newCanvas.getContext('2d');
+  const labels = teams.map(t => `Team ${t.team}`);
+  const cleanLabels = teams.map(t => t.team);
 
-    const newCanvas = document.createElement('canvas');
-    newCanvas.id = 'fuelOprChart';
-    newCanvas.style.cssText = `
-      width: 100% !important;
-      height: 100% !important;
-      display: block;
-    `;
+  // Set colors based on team
+  const autoColors = teams.map(t => {
+    if (t.team === '226') return '#7014c5'; // Pink for 226 auto
+    if (t.team === highlightedOverviewTeam) return '#FE59D7'; // Light pink for searched team auto
+    return '#000bab'; // Deeper vibrant blue for normal auto (Cobalt blue)
+  });
 
-    canvasContainer.appendChild(newCanvas);
-    scrollWrapper.appendChild(canvasContainer);
-    container.appendChild(scrollWrapper);
+  const teleColors = teams.map(t => {
+    if (t.team === '226') return '#FE59D7'; // Light pink for 226 tele
+    if (t.team === highlightedOverviewTeam) return '#FFC0CB'; // Lighter pink for searched team tele
+    return '#3EDBF0'; // Standard blue for normal tele
+  });
 
-    const ctx = newCanvas.getContext('2d');
-    const labels = sorted.map(s => `Team ${s.team}`);
-    const cleanLabels = sorted.map(s => s.team);
-    const dataVals = sorted.map(s => s.value);
-    const colors = sorted.map(s =>
-    (s.team === '226' ? '#FE59D7' :
-      (s.team === highlightedOverviewTeam ? '#ffaad3' : '#3EDBF0'))
-    );
-
-charts['fuelOprChart'] = new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: labels,
-    datasets: [{
-      label: 'OPR',
-      data: dataVals,
-      backgroundColor: colors,
-      borderWidth: 0,
-      borderRadius: 6,
-      barThickness: 75, 
-      hoverBackgroundColor: colors.map(color => color + '80')
-    }]
-  },
-  options: {
-    onClick: getChartClickHandler(),
-    responsive: true,
-    maintainAspectRatio: false,
-    devicePixelRatio: 3,
-    layout: {
-      padding: {
-        top: 20,
-        bottom: 10,
-        left: 20,
-        right: 20
-      }
+  charts['fuelOprChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Auto Shot',
+          data: teams.map(t => t.auto),
+          backgroundColor: autoColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          stack: 'fuel',
+          maxBarThickness: 75
+        },
+        {
+          label: 'Tele Shot',
+          data: teams.map(t => t.tele),
+          backgroundColor: teleColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          stack: 'fuel',
+          maxBarThickness: 75
+        }
+      ]
     },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: true,
-        callbacks: {
-          title: function(context) {
-            const idx = context[0].dataIndex;
-            return `Team ${sorted[idx].team}`;
-          },
-          label: function(context) {
-            const idx = context.dataIndex;
-            const rank = idx + 1;
-            return [
-              `Rank: ${rank}`,
-              `OPR: ${sorted[idx].value.toFixed(2)}`
-            ];
-          }
-        },
-        backgroundColor: '#1C1E21',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        borderColor: '#000',
-        borderWidth: 1,
-        titleFont: { family: 'Lato', size: 14 },
-        bodyFont: { family: 'Lato', size: 14 },
-        padding: 10
+    options: {
+      onClick: getChartClickHandler(),
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 3,
+      layout: {
+        padding: {
+          top: 30,
+          bottom: 10,
+          left: 20,
+          right: 20
+        }
       },
-      datalabels: {
-        display: true,
-        color: 'white',
-        anchor: 'end',
-        align: 'top',
-        offset: 4,
-        font: {
-          family: 'Lato',
-          size: 12,
-          weight: 'bold'
+      plugins: {
+        legend: {
+          display: false // Remove legend/key
         },
-        formatter: function(value) {
-          return Math.round(value);
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            title: function () {
+              return ''; // No title
+            },
+            label: function (context) {
+              const idx = context.dataIndex;
+              const teamNumber = teams[idx].team;
+              const rank = idx + 1;
+              const total = teams[idx].total.toFixed(2);
+
+              return [
+                `Team ${teamNumber}`,
+                `Rank: ${rank}`,
+                `Total Fuel Shot: ${total}`
+              ];
+            }
+          },
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          titleFont: { family: 'Lato', size: 14 },
+          bodyFont: { family: 'Lato', size: 14 },
+          padding: 10
+        },
+        datalabels: {
+          display: true,
+          color: 'white',
+          anchor: 'end',
+          align: 'top',
+          offset: 4,
+          font: {
+            family: 'Lato',
+            size: 16,
+            weight: 'bold'
+          },
+          formatter: function (value, context) {
+            // Only show the total value on top of the stack
+            // We'll check if this is the second dataset (Tele Shot) which is on top
+            const datasetIndex = context.datasetIndex;
+            if (datasetIndex === 1) { // Tele Shot dataset (the top one)
+              const dataIndex = context.dataIndex;
+              return teams[dataIndex].total.toFixed(1);
+            }
+            return null; // Don't show on Auto Shot bars
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            autoSkip: false,
+          },
+          grid: { display: false }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            stepSize: 25,
+            callback: function (value) {
+              return Math.round(value);
+            }
+          },
+          grid: { display: false }
         }
       }
+    }
+  });
+
+  if (charts['fuelOprChart']) {
+    charts['fuelOprChart'].data.labels = cleanLabels;
+    charts['fuelOprChart'].update();
+  }
+}
+function renderFuelFerriedChart() {
+  const canvas = document.getElementById('fuelFerriedChart');
+  if (!canvas) return;
+
+  const container = document.getElementById('fuelFerriedChartContainer');
+  if (!container) return;
+
+  const titleDiv = container.querySelector('#fuelFerriedChartTitle');
+  container.innerHTML = '';
+  if (titleDiv) container.appendChild(titleDiv);
+
+  if (charts['fuelFerriedChart']) {
+    charts['fuelFerriedChart'].destroy();
+    charts['fuelFerriedChart'] = null;
+  }
+
+  // Parse event data
+  const parsed = parseCSV();
+  const data = parsed && parsed.data ? parsed.data : [];
+
+  if (!data || data.length === 0) {
+    renderBlankChart('fuelFerriedChart', 'No Data');
+    return;
+  }
+
+  // Calculate average auto and tele fuel ferried per team
+  const teamStats = {};
+
+  data.forEach(row => {
+    const team = row['Team Number']?.toString().trim();
+    if (!team) return;
+
+    const autoFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+    const teleFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+
+    if (isNaN(autoFerried) || isNaN(teleFerried)) return;
+
+    if (!teamStats[team]) {
+      teamStats[team] = {
+        autoSum: 0,
+        teleSum: 0,
+        matchCount: 0
+      };
+    }
+
+    teamStats[team].autoSum += autoFerried;
+    teamStats[team].teleSum += teleFerried;
+    teamStats[team].matchCount += 1;
+  });
+
+  // Calculate averages and prepare data for chart
+  const teams = Object.keys(teamStats).map(team => {
+    const stats = teamStats[team];
+    const avgAuto = stats.matchCount > 0 ? stats.autoSum / stats.matchCount : 0;
+    const avgTele = stats.matchCount > 0 ? stats.teleSum / stats.matchCount : 0;
+    return {
+      team,
+      auto: avgAuto,
+      tele: avgTele,
+      total: avgAuto + avgTele
+    };
+  });
+
+  if (teams.length === 0) {
+    renderBlankChart('fuelFerriedChart', 'No Fuel Ferried Data');
+    return;
+  }
+
+  // Sort by total fuel ferried
+  teams.sort((a, b) => b.total - a.total);
+
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.style.cssText = `
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    margin-top: 20px;
+  `;
+
+  const barWidth = 75;
+  const spacing = 15;
+  const totalWidth = Math.max(800, teams.length * (barWidth + spacing));
+
+  const canvasContainer = document.createElement('div');
+  canvasContainer.style.cssText = `
+    width: ${totalWidth}px;
+    height: 650px;
+    position: relative;
+  `;
+
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'fuelFerriedChart';
+  newCanvas.style.cssText = `
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  `;
+
+  canvasContainer.appendChild(newCanvas);
+  scrollWrapper.appendChild(canvasContainer);
+  container.appendChild(scrollWrapper);
+
+  const ctx = newCanvas.getContext('2d');
+  const labels = teams.map(t => `Team ${t.team}`);
+  const cleanLabels = teams.map(t => t.team);
+
+  const autoColors = teams.map(t => {
+    if (t.team === '226') return '#7014c5'; // Pink for 226 auto
+    if (t.team === highlightedOverviewTeam) return '#FE59D7'; // Light pink for searched team auto
+    return '#000bab'; // Deeper vibrant blue for normal auto (Cobalt blue)
+  });
+
+  const teleColors = teams.map(t => {
+    if (t.team === '226') return '#FE59D7'; // Light pink for 226 tele
+    if (t.team === highlightedOverviewTeam) return '#FFC0CB'; // Lighter pink for searched team tele
+    return '#3EDBF0'; // Standard blue for normal tele
+  });
+
+  charts['fuelFerriedChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Auto Ferried',
+          data: teams.map(t => t.auto),
+          backgroundColor: autoColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          stack: 'fuel',
+          maxBarThickness: 75
+        },
+        {
+          label: 'Tele Ferried',
+          data: teams.map(t => t.tele),
+          backgroundColor: teleColors,
+          borderWidth: 0,
+          borderRadius: 6,
+          barPercentage: 1,
+          categoryPercentage: 0.9,
+          stack: 'fuel',
+          maxBarThickness: 75
+        }
+      ]
     },
-    scales: {
-      x: {
-        ticks: {
-          color: 'white',
-          font: { family: 'Lato', size: 12, weight: 'bold' },
-          autoSkip: false,
-        },
-        grid: { display: false }
+    options: {
+      onClick: getChartClickHandler(),
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: 3,
+      layout: {
+        padding: {
+          top: 30,
+          bottom: 10,
+          left: 20,
+          right: 20
+        }
       },
-      y: {
-        beginAtZero: true,
-        ticks: {
-          color: 'white',
-          font: { family: 'Lato', size: 14, weight: 'bold' },
-          stepSize: 25,
-          callback: function(value) {
-            return Math.round(value);
-          }
+      plugins: {
+        legend: {
+          display: false // Remove legend/key
         },
-        grid: { display: false }
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            title: function () {
+              return ''; // No title
+            },
+            label: function (context) {
+              const idx = context.dataIndex;
+              const teamNumber = teams[idx].team;
+              const rank = idx + 1;
+              const total = teams[idx].total.toFixed(2);
+
+              return [
+                `Team ${teamNumber}`,
+                `Rank: ${rank}`,
+                `Total Fuel Ferried: ${total}`
+              ];
+            }
+          },
+          backgroundColor: '#1C1E21',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#000',
+          borderWidth: 1,
+          titleFont: { family: 'Lato', size: 14 },
+          bodyFont: { family: 'Lato', size: 14 },
+          padding: 10
+        },
+        datalabels: {
+          display: true,
+          color: 'white',
+          anchor: 'end',
+          align: 'top',
+          offset: 4,
+          font: {
+            family: 'Lato',
+            size: 16,
+            weight: 'bold'
+          },
+          formatter: function (value, context) {
+            // Only show the total value on top of the stack
+            const datasetIndex = context.datasetIndex;
+            if (datasetIndex === 1) { // Tele Ferried dataset (the top one)
+              const dataIndex = context.dataIndex;
+              return teams[dataIndex].total.toFixed(1);
+            }
+            return null; // Don't show on Auto Ferried bars
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            autoSkip: false,
+          },
+          grid: { display: false }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            color: 'white',
+            font: { family: 'Lato', size: 16, weight: 'bold' },
+            stepSize: 25,
+            callback: function (value) {
+              return Math.round(value);
+            }
+          },
+          grid: { display: false }
+        }
       }
     }
-  }
-});
+  });
 
-    if (charts['fuelOprChart']) {
-      charts['fuelOprChart'].data.labels = cleanLabels;
-      charts['fuelOprChart'].update();
-    }
-  } catch (err) {
-    console.error('Error rendering Fuel OPR chart', err);
-    renderBlankChart('fuelOprChart', 'Error');
+  if (charts['fuelFerriedChart']) {
+    charts['fuelFerriedChart'].data.labels = cleanLabels;
+    charts['fuelFerriedChart'].update();
   }
 }
 
@@ -4248,9 +7468,8 @@ function handleOverviewSearch() {
   highlightedOverviewTeam = input;
   const parsedData = parseCSV();
   renderOverviewStackedChart(parsedData.data);
-  renderFuelOprChart();
-
-
+  renderFuelShotChart();
+  renderFuelFerriedChart(); // Add this line
 }
 
 function clearOverviewSearch() {
@@ -4259,16 +7478,17 @@ function clearOverviewSearch() {
   highlightedOverviewTeam = null;
   const parsedData = parseCSV();
   renderOverviewStackedChart(parsedData.data);
-  renderFuelOprChart();
+  renderFuelShotChart();
+  renderFuelFerriedChart(); // Add this line
 }
-
-
 
 document.addEventListener('DOMContentLoaded', function () {
   try {
     const overviewCanvas = document.getElementById('overviewStackedChart');
     const fuelCanvas = document.getElementById('fuelOprChart');
-    if (!overviewCanvas || !fuelCanvas) return;
+    const fuelFerriedCanvas = document.getElementById('fuelFerriedChart'); // Add this line
+
+    if (!overviewCanvas || !fuelCanvas || !fuelFerriedCanvas) return; // Update this line
 
     const parsed = parseCSV();
     const data = (parsed && parsed.data) ? parsed.data : [];
@@ -4276,17 +7496,18 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!data || data.length === 0) {
       renderBlankChart('overviewStackedChart', 'No Data');
       renderBlankChart('fuelOprChart', 'No Data');
+      renderBlankChart('fuelFerriedChart', 'No Data'); // Add this line
     } else {
       setTimeout(() => {
         renderOverviewStackedChart(data);
-        renderFuelOprChart();
+        renderFuelShotChart();
+        renderFuelFerriedChart(); // Add this line
       }, 100);
     }
   } catch (err) {
     console.error('Error initializing overview charts on load:', err);
   }
 });
-
 /*-----FILTER VIEW----*/
 
 async function addHiddenTeam(e) {
@@ -4416,7 +7637,11 @@ function applyFilters() {
     if (!teamMap[team]) {
       teamMap[team] = {
         matches: [],
-        epaTotal: 0,
+        totalPoints: 0,
+        totalAutoShot: 0,
+        totalTeleShot: 0,
+        totalAutoFerried: 0,
+        totalTeleFerried: 0,
         matchCount: 0,
         hasAutoClimb: false,
         hasAutoCenter: false,
@@ -4431,8 +7656,18 @@ function applyFilters() {
       };
     }
 
-    const totalScore = parseFloat(row['Total Score'] || row['Total Points'] || 0);
-    teamMap[team].epaTotal += totalScore;
+    const totalScore = parseFloat(row['Total Points'] || row['Total Score'] || 0);
+    const autoShot = parseFloat(row['Auto Fuel Shot'] || 0);
+    const teleShot = parseFloat(row['Tele Fuel Shot'] || 0);
+    const autoFerried = parseFloat(row['Auto Fuel Ferried'] || 0);
+    const teleFerried = parseFloat(row['Tele Fuel Ferried'] || 0);
+
+    if (!isNaN(totalScore)) teamMap[team].totalPoints += totalScore;
+    if (!isNaN(autoShot)) teamMap[team].totalAutoShot += autoShot;
+    if (!isNaN(teleShot)) teamMap[team].totalTeleShot += teleShot;
+    if (!isNaN(autoFerried)) teamMap[team].totalAutoFerried += autoFerried;
+    if (!isNaN(teleFerried)) teamMap[team].totalTeleFerried += teleFerried;
+
     teamMap[team].matchCount++;
     teamMap[team].matches.push(row);
 
@@ -4507,23 +7742,17 @@ function applyFilters() {
     });
   }
 
-  let oprData = {};
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    parsed.data.forEach(row => {
-      const team = row['Team Number']?.toString().trim();
-      if (team) {
-        oprData[team] = parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      }
-    });
-  }
-
   const allTeams = Object.entries(teamMap).map(([team, data]) => {
-    const avgPoints = data.matchCount > 0 ? (data.epaTotal / data.matchCount) : 0;
+    // Calculate EPA as average of Total Points only (no OPR) - rounded to 1 decimal
+    const avgEPA = data.matchCount > 0 ? Math.round((data.totalPoints / data.matchCount) * 10) / 10 : 0;
 
-    const opr = oprData[team] || 0;
+    // Calculate average shot (auto + tele) - rounded to 1 decimal
+    const totalShot = data.totalAutoShot + data.totalTeleShot;
+    const avgShot = data.matchCount > 0 ? Math.round((totalShot / data.matchCount) * 10) / 10 : 0;
 
-    const epa = Math.round((avgPoints + opr) * 10) / 10;
+    // Calculate average ferried (auto + tele) - rounded to 1 decimal
+    const totalFerried = data.totalAutoFerried + data.totalTeleFerried;
+    const avgFerried = data.matchCount > 0 ? Math.round((totalFerried / data.matchCount) * 10) / 10 : 0;
 
     const flags = {
       autoClimb: data.hasAutoClimb,
@@ -4547,8 +7776,9 @@ function applyFilters() {
 
     return {
       team,
-      avgEPA: epa,
-      avgOPR: opr,
+      avgEPA,
+      avgShot,
+      avgFerried,
       flags,
       isHidden: hiddenTeams.includes(team)
     };
@@ -4602,8 +7832,11 @@ function applyFilters() {
     case 'EPA':
       sortFn = (a, b) => b.avgEPA - a.avgEPA;
       break;
-    case 'avgOPR':
-      sortFn = (a, b) => b.avgOPR - a.avgOPR;
+    case 'avgShot':
+      sortFn = (a, b) => b.avgShot - a.avgShot;
+      break;
+    case 'avgFerried':
+      sortFn = (a, b) => b.avgFerried - a.avgFerried;
       break;
     default:
       sortFn = (a, b) => b.avgEPA - a.avgEPA;
@@ -4685,78 +7918,19 @@ function renderTeamGroup(teams, container, sortBy) {
     let metricValue, metricLabel;
     switch (sortBy) {
       case 'EPA':
-        metricValue = team.avgEPA;
+        metricValue = team.avgEPA.toFixed(1); // Changed from toFixed(2) to toFixed(1)
         metricLabel = 'Avg. EPA';
         break;
-      case 'avgOPR':
-        metricValue = team.avgOPR.toFixed(1);
-        metricLabel = 'Fuel OPR';
+      case 'avgShot':
+        metricValue = team.avgShot.toFixed(1); // Changed from toFixed(2) to toFixed(1)
+        metricLabel = 'Avg. Shot';
+        break;
+      case 'avgFerried':
+        metricValue = team.avgFerried.toFixed(1); // Changed from toFixed(2) to toFixed(1)
+        metricLabel = 'Avg. Ferried';
         break;
       default:
-        metricValue = team.avgEPA;
-        metricLabel = 'Avg. EPA';
-    }
-
-    box.innerHTML = `
-  <h3 style="margin: 0 0 10px 0;">Team ${team.team}</h3>
-  <p style="margin: 5px 0;"><strong>${metricLabel}:</strong> ${metricValue.toFixed(1)}</p>
-  <button class="blue-button" onclick="goToIndividualView('${team.team}')" style="margin-top: 10px;">View</button>
-`;
-
-    grid.appendChild(box);
-  });
-
-  container.appendChild(grid);
-}
-
-function renderTeamGroup(teams, container, sortBy) {
-  const grid = document.createElement('div');
-  grid.className = 'row';
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
-  grid.style.gap = '15px';
-
-  teams.forEach(team => {
-    const box = document.createElement('div');
-    box.style.backgroundColor = team.isHidden ? '#2a2d31' : '#1C1E21';
-    box.style.borderRadius = '12px';
-    box.style.padding = '15px';
-    box.style.color = 'white';
-    box.style.boxShadow = '#131416 0px 0px 10px';
-    box.style.textAlign = 'center';
-    box.style.fontFamily = 'Lato';
-    box.style.display = 'flex';
-    box.style.flexDirection = 'column';
-    box.style.justifyContent = 'center';
-    box.style.alignItems = 'center';
-    box.style.position = 'relative';
-
-    if (team.isHidden) {
-      const hiddenTag = document.createElement('div');
-      hiddenTag.textContent = 'HIDDEN';
-      hiddenTag.style.position = 'absolute';
-      hiddenTag.style.top = '5px';
-      hiddenTag.style.right = '5px';
-      hiddenTag.style.backgroundColor = '#ff5c5c';
-      hiddenTag.style.color = 'white';
-      hiddenTag.style.fontSize = '10px';
-      hiddenTag.style.padding = '2px 5px';
-      hiddenTag.style.borderRadius = '3px';
-      box.appendChild(hiddenTag);
-    }
-
-    let metricValue, metricLabel;
-    switch (sortBy) {
-      case 'EPA':
-        metricValue = team.avgEPA;
-        metricLabel = 'Avg. EPA';
-        break;
-      case 'avgOPR':
-        metricValue = team.avgOPR.toFixed(1);
-        metricLabel = 'Fuel OPR';
-        break;
-      default:
-        metricValue = team.avgEPA;
+        metricValue = team.avgEPA.toFixed(1); // Changed from toFixed(2) to toFixed(1)
         metricLabel = 'Avg. EPA';
     }
 
@@ -4792,29 +7966,178 @@ function goToIndividualView(teamNumber) {
 /*-----MATCH PREDICTOR FUNCTIONS----*/
 
 
-document.addEventListener('DOMContentLoaded', function () {
-  const submitSchedule = document.getElementById('submitSchedule');
-  if (submitSchedule) {
-    const newSubmitSchedule = submitSchedule.cloneNode(true);
-    submitSchedule.parentNode.replaceChild(newSubmitSchedule, submitSchedule);
+/*-----MATCH PREDICTOR FUNCTIONS-----*/
 
-    newSubmitSchedule.addEventListener('click', function (e) {
-      e.preventDefault();
-      handleScheduleUpload(e);
-    });
+document.addEventListener('DOMContentLoaded', function () {
+  console.log("DOM fully loaded - setting up match predictor");
+
+  // Function to setup predict button with retry
+  function setupPredictButton() {
+    const predictButton = document.getElementById('predict-button');
+    if (predictButton) {
+      console.log("Predict button found, attaching event listener");
+
+      // Remove any existing event listeners by cloning
+      const newPredictButton = predictButton.cloneNode(true);
+      predictButton.parentNode.replaceChild(newPredictButton, predictButton);
+
+      // Add our unified click handler
+      newPredictButton.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("Predict button clicked from event listener");
+        handlePredictClick();
+      });
+
+      return true;
+    }
+    return false;
   }
 
+  // Try to setup immediately
+  if (!setupPredictButton()) {
+    console.log("Predict button not found immediately, will retry");
+    // Retry a few times with delays
+    let retryCount = 0;
+    const maxRetries = 10;
+    const retryInterval = setInterval(function () {
+      retryCount++;
+      console.log(`Retry ${retryCount} to find predict button`);
+
+      if (setupPredictButton()) {
+        console.log("Predict button found and setup on retry", retryCount);
+        clearInterval(retryInterval);
+      } else if (retryCount >= maxRetries) {
+        console.log("Max retries reached, stopping search for predict button");
+        clearInterval(retryInterval);
+      }
+    }, 500);
+  }
+
+  // Set up match number input for Enter key
+  const matchNumberInput = document.getElementById('matchNumberInput');
+  if (matchNumberInput) {
+    console.log("Match number input found");
+    matchNumberInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("Enter pressed on match number input");
+        handlePredictClick();
+      }
+    });
+  } else {
+    console.log("Match number input not found");
+  }
+
+  // Add input validation for team fields
+  const teamInputs = ['redTeam1', 'redTeam2', 'redTeam3', 'blueTeam1', 'blueTeam2', 'blueTeam3'];
+  teamInputs.forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.addEventListener('input', function () {
+        this.value = this.value.replace(/[^0-9]/g, '');
+      });
+    } else {
+      console.log(`Team input ${id} not found`);
+    }
+  });
+});
+
+// Backup direct onclick handler
+window.onload = function () {
+  console.log("Window fully loaded");
   const predictButton = document.getElementById('predict-button');
   if (predictButton) {
-    const newPredictButton = predictButton.cloneNode(true);
-    predictButton.parentNode.replaceChild(newPredictButton, predictButton);
-
-    newPredictButton.addEventListener('click', function (e) {
+    console.log("Setting up backup onclick handler");
+    predictButton.onclick = function (e) {
       e.preventDefault();
-      populateMatchTeams();
-    });
+      console.log("Predict button clicked via onclick backup");
+      handlePredictClick();
+      return false;
+    };
   }
-});
+};
+// Unified handler for predict button clicks
+function handlePredictClick() {
+  console.log("handlePredictClick function is running!");
+  console.log("Predict button clicked");
+
+  // Get match number first - this should take priority
+  const matchNumber = document.getElementById('matchNumberInput').value.trim();
+
+  // Get team values
+  const teamInputs = [
+    document.getElementById('redTeam1').value.trim(),
+    document.getElementById('redTeam2').value.trim(),
+    document.getElementById('redTeam3').value.trim(),
+    document.getElementById('blueTeam1').value.trim(),
+    document.getElementById('blueTeam2').value.trim(),
+    document.getElementById('blueTeam3').value.trim(),
+  ];
+
+  const filledTeams = teamInputs.filter(t => t);
+
+  console.log("Team inputs:", teamInputs);
+  console.log("Filled teams:", filledTeams);
+  console.log("Match number:", matchNumber);
+
+  // CASE 1: Match number is provided - this takes priority over custom teams
+  if (matchNumber) {
+    console.log("Match number provided, loading from schedule: " + matchNumber);
+
+    // Clear any existing team inputs? Or leave them? 
+    // For now, we'll load from schedule and it will overwrite them
+    populateMatchTeams();
+    return;
+  }
+
+  // CASE 2: No match number, but user provided at least one team - treat as custom/imaginary match
+  if (filledTeams.length > 0) {
+    console.log("Custom/imaginary match prediction (teams provided)");
+    predictCustomMatch();
+    return;
+  }
+
+  // CASE 3: Nothing to do
+  alert('Please either:\n- Enter a match number to load from schedule, OR\n- Enter at least one team to predict an imaginary match');
+}
+
+// Custom match prediction
+function predictCustomMatch() {
+  console.log("Running custom match prediction");
+
+  // Get values (allow partial "imaginary" lineups)
+  const teamInputs = [
+    document.getElementById('redTeam1').value.trim(),
+    document.getElementById('redTeam2').value.trim(),
+    document.getElementById('redTeam3').value.trim(),
+    document.getElementById('blueTeam1').value.trim(),
+    document.getElementById('blueTeam2').value.trim(),
+    document.getElementById('blueTeam3').value.trim(),
+  ];
+
+  const filledTeams = teamInputs.filter(t => t);
+
+  if (filledTeams.length === 0) {
+    alert('Please enter at least one team to predict an imaginary match');
+    return;
+  }
+
+  // Validate entries are numbers
+  const invalidTeams = filledTeams.filter(team => !/^\d+$/.test(team));
+  if (invalidTeams.length > 0) {
+    alert('Please enter valid team numbers (digits only)');
+    return;
+  }
+
+  // Clear match number input (not needed for custom prediction)
+  document.getElementById('matchNumberInput').value = '';
+
+  // Run prediction using partial lineup if provided
+  updateMatchPrediction(teamInputs);
+  renderMatchSummary(teamInputs);
+}
 
 function populateMatchTeams() {
   const matchNumber = document.getElementById('matchNumberInput').value.trim();
@@ -4824,10 +8147,7 @@ function populateMatchTeams() {
     return;
   }
 
-  let scheduleText = scheduleCsvText;
-  if (!scheduleText) {
-    scheduleText = localStorage.getItem('scheduleCsvText');
-  }
+  let scheduleText = window.scheduleCsvText || localStorage.getItem('scheduleCsvText');
 
   if (!scheduleText) {
     alert('Please upload match schedule CSV first');
@@ -4845,14 +8165,19 @@ function populateMatchTeams() {
       return;
     }
 
-    const scheduleData = result.data;
+    // Find match header
+    const matchHeader = (result.meta.fields || []).find(f => {
+      if (!f) return false;
+      const normalized = f.toString().trim().toLowerCase().replace(/[_\s]/g, '');
+      return normalized === 'match' || normalized === 'matchnumber';
+    }) || 'Match Number';
 
-    const match = scheduleData.find(row => {
-      const rowMatchNum = row['Match Number']?.toString().trim();
-      return rowMatchNum === matchNumber;
+    const match = result.data.find(row => {
+      return row[matchHeader]?.toString().trim() === matchNumber;
     });
 
     if (match) {
+      // Populate team fields
       document.getElementById('redTeam1').value = match['Red 1']?.toString().trim() || '';
       document.getElementById('redTeam2').value = match['Red 2']?.toString().trim() || '';
       document.getElementById('redTeam3').value = match['Red 3']?.toString().trim() || '';
@@ -4869,38 +8194,90 @@ function populateMatchTeams() {
         match['Blue 3']?.toString().trim()
       ].filter(team => team && team !== '');
 
+      // Always call prediction functions, even if not all teams are present
+      // This will show predictions based on available teams
       updateMatchPrediction(allTeams);
       renderMatchSummary(allTeams);
 
+      console.log("Match loaded and prediction updated for match", matchNumber);
     } else {
       alert(`Match ${matchNumber} not found in schedule`);
     }
   } catch (err) {
-    console.error('Error populating match:', err);
-    alert('Error reading schedule file: ' + err.message);
+    console.error('Error:', err);
+    alert('Error reading schedule file');
   }
 }
 function renderMatchSummary(teams) {
+  console.log("renderMatchSummary called with teams:", teams);
   const summaryDiv = document.getElementById('matchSummaryTable');
 
   if (!summaryDiv) return;
 
-  let oprData = {};
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    parsed.data.forEach(row => {
-      const team = row['Team Number']?.toString().trim();
-      if (team) {
-        oprData[team] = {
-          autoOPR: parseFloat((row['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
-          teleOPR: parseFloat((row['Tele OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0,
-          totalOPR: parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0
-        };
-      }
-    });
-  }
-
   const eventData = parseCSV().data;
+
+  const calculateTeamEPA = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const totalPoints = teamMatches
+      .map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgTotalPoints = totalPoints.length > 0
+      ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length
+      : 0;
+
+    return avgTotalPoints;
+  };
+
+  const calculateAutoShot = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const autoShots = teamMatches
+      .map(row => parseFloat(row['Auto Fuel Shot'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgAutoShot = autoShots.length > 0
+      ? autoShots.reduce((a, b) => a + b, 0) / autoShots.length
+      : 0;
+
+    return avgAutoShot;
+  };
+
+  const calculateTeleShot = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const teleShots = teamMatches
+      .map(row => parseFloat(row['Tele Fuel Shot'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgTeleShot = teleShots.length > 0
+      ? teleShots.reduce((a, b) => a + b, 0) / teleShots.length
+      : 0;
+
+    return avgTeleShot;
+  };
 
   const calculateClimbRate = (team) => {
     if (!team) return '0.0%';
@@ -4917,11 +8294,9 @@ function renderMatchSummary(teams) {
       .filter(v => v && v !== '');
 
     const successfulClimbs = climbValues.filter(v => ['1', '2', '3'].includes(v)).length;
-
     const totalClimbAttempts = climbValues.filter(v => ['1', '2', '3', 'F'].includes(v)).length;
 
     if (totalClimbAttempts === 0) return '0.0%';
-
     const rate = ((successfulClimbs / totalClimbAttempts) * 100).toFixed(1);
     return rate + '%';
   };
@@ -4941,7 +8316,6 @@ function renderMatchSummary(teams) {
       .filter(v => !isNaN(v) && [0, 1, 2, 3].includes(v));
 
     if (shootingValues.length === 0) return '0.0';
-
     const avgAccuracy = shootingValues.reduce((a, b) => a + b, 0) / shootingValues.length;
     return avgAccuracy.toFixed(1);
   };
@@ -4985,32 +8359,6 @@ function renderMatchSummary(teams) {
       case '3': return 'L3';
       default: return 'N/A';
     }
-  };
-
-  const getAverageClimbTime = (team, targetLevel) => {
-    if (!team) return 'N/A';
-    const teamMatches = eventData.filter(row => {
-      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-      return teamNum === team;
-    }).filter(row => {
-      const startingPosition = row['Starting Position']?.toString().trim();
-      return startingPosition !== 'R';
-    });
-
-    const levelNum = targetLevel.replace('L', '');
-
-    const climbTimes = teamMatches
-      .filter(row => {
-        const climbValue = row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim();
-        const climbTime = parseFloat(row['Climb Time'] || row['Climb Time per Level'] || 0);
-        return climbValue === levelNum && !isNaN(climbTime) && climbTime > 0;
-      })
-      .map(row => parseFloat(row['Climb Time'] || row['Climb Time per Level'] || 0));
-
-    if (climbTimes.length === 0) return 'N/A';
-
-    const avgTime = climbTimes.reduce((a, b) => a + b, 0) / climbTimes.length;
-    return avgTime.toFixed(1) + 's';
   };
 
   const calculateDiedAndMissingRate = (team) => {
@@ -5145,12 +8493,11 @@ function renderMatchSummary(teams) {
                 <thead>
                     <tr style="border-bottom: 2px solid white;">
                         <th style="padding: 12px 8px; text-align: left; color: white; font-weight: bold;">Team</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Total OPR</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Auto OPR</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Tele OPR</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">EPA</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Auto Shot</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Tele Shot</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Shooting Acc</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Most Common</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Time</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Rate</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Defense</th>
                     </tr>
@@ -5163,10 +8510,11 @@ function renderMatchSummary(teams) {
 
     const alliance = index < 3 ? 'Red' : 'Blue';
     const allianceColor = alliance === 'Red' ? '#ff5c5c' : '#3EDBF0';
-    const stats = oprData[team] || { autoOPR: 0, teleOPR: 0, totalOPR: 0 };
+    const epa = calculateTeamEPA(team);
+    const autoShot = calculateAutoShot(team);
+    const teleShot = calculateTeleShot(team);
     const shootingAccuracy = calculateShootingAccuracy(team);
     const mostCommonClimb = getMostCommonClimb(team);
-    const climbTime = getAverageClimbTime(team, mostCommonClimb);
     const climbRate = calculateClimbRate(team);
     const { diedRate, missingRate, diedMatches, missingMatches } = calculateDiedAndMissingRate(team);
     const defenseRating = calculateAvgDefenseRating(team);
@@ -5229,12 +8577,11 @@ function renderMatchSummary(teams) {
                     ${tooltipHTML}
                   </span>
                 </td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${stats.totalOPR.toFixed(2)}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${stats.autoOPR.toFixed(2)}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${stats.teleOPR.toFixed(2)}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${epa.toFixed(2)}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${autoShot.toFixed(2)}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${teleShot.toFixed(2)}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${shootingAccuracy}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${mostCommonClimb}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${climbTime}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${climbRate}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${defenseRating}</td>
             </tr>
@@ -5251,60 +8598,83 @@ function renderMatchSummary(teams) {
   console.log("Summary HTML inserted");
 }
 function updateMatchPrediction(teams) {
-  if (teams.length !== 6) return;
+  console.log("updateMatchPrediction called with teams:", teams);
+  if (!Array.isArray(teams) || teams.length === 0) return;
 
   const redTeams = teams.slice(0, 3);
   const blueTeams = teams.slice(3, 6);
 
-  let oprData = {};
-  let autoOprData = {};
-  if (oprCsvText && oprCsvText.trim()) {
-    const parsed = Papa.parse(oprCsvText, { header: true, skipEmptyLines: true });
-    parsed.data.forEach(row => {
-      const team = row['Team Number']?.toString().trim();
-      if (team) {
-        oprData[team] = parseFloat((row['Total OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-        autoOprData[team] = parseFloat((row['Auto OPR'] || '').toString().replace(/[^0-9.-]/g, '')) || 0;
-      }
-    });
-  }
-
+  // Parse event data for total points and auto fuel shots
   const eventData = parseCSV().data;
 
   const calculateTeamEPA = (team) => {
+    if (!team) return 0;
     const teamMatches = eventData.filter(row => {
       const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
       return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R'; // Filter out matches where robot was missing
     });
-    const totalPoints = teamMatches.map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0)).filter(v => !isNaN(v));
-    const avgTotalPoints = totalPoints.length > 0 ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length : 0;
-    return avgTotalPoints + (oprData[team] || 0);
+
+    const totalPoints = teamMatches
+      .map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgTotalPoints = totalPoints.length > 0
+      ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length
+      : 0;
+
+    return avgTotalPoints;
   };
 
+  const calculateTeamAutoFuelShot = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R'; // Filter out matches where robot was missing
+    });
+
+    const autoFuelShots = teamMatches
+      .map(row => parseFloat(row['Auto Fuel Shot'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgAutoFuelShot = autoFuelShots.length > 0
+      ? autoFuelShots.reduce((a, b) => a + b, 0) / autoFuelShots.length
+      : 0;
+
+    return avgAutoFuelShot;
+  };
+
+  // Calculate EPA for each team (average of total points only)
   const redEPA = redTeams.reduce((sum, team) => sum + calculateTeamEPA(team), 0);
   const blueEPA = blueTeams.reduce((sum, team) => sum + calculateTeamEPA(team), 0);
+
+  // Calculate Auto Fuel Shot averages for alliance shift
+  const redAutoFuelShot = redTeams.reduce((sum, team) => sum + calculateTeamAutoFuelShot(team), 0);
+  const blueAutoFuelShot = blueTeams.reduce((sum, team) => sum + calculateTeamAutoFuelShot(team), 0);
+  const totalAutoFuelShot = redAutoFuelShot + blueAutoFuelShot;
+  const redAutoPercentage = totalAutoFuelShot > 0 ? ((redAutoFuelShot / totalAutoFuelShot) * 100).toFixed(1) : "50.0";
+  const blueAutoPercentage = totalAutoFuelShot > 0 ? ((blueAutoFuelShot / totalAutoFuelShot) * 100).toFixed(1) : "50.0";
 
   const totalEPA = redEPA + blueEPA;
   const redPercentage = totalEPA > 0 ? ((redEPA / totalEPA) * 100).toFixed(1) : "50.0";
   const bluePercentage = totalEPA > 0 ? ((blueEPA / totalEPA) * 100).toFixed(1) : "50.0";
 
-  const redAutoOPR = redTeams.reduce((sum, team) => sum + (autoOprData[team] || 0), 0);
-  const blueAutoOPR = blueTeams.reduce((sum, team) => sum + (autoOprData[team] || 0), 0);
-  const totalAutoOPR = redAutoOPR + blueAutoOPR;
-  const redAutoPercentage = totalAutoOPR > 0 ? ((redAutoOPR / totalAutoOPR) * 100).toFixed(1) : "50.0";
-  const blueAutoPercentage = totalAutoOPR > 0 ? ((blueAutoOPR / totalAutoOPR) * 100).toFixed(1) : "50.0";
-
   let firstShiftAlliance = '';
-  let secondShiftAlliance = '';
   let firstShiftColor = '';
+  let secondShiftAlliance = '';
   let secondShiftColor = '';
 
-  if (redAutoOPR < blueAutoOPR) {
+  if (redAutoFuelShot < blueAutoFuelShot) {
     firstShiftAlliance = 'RED';
     firstShiftColor = '#ff5c5c';
     secondShiftAlliance = 'BLUE';
     secondShiftColor = '#3EDBF0';
-  } else if (blueAutoOPR < redAutoOPR) {
+  } else if (blueAutoFuelShot < redAutoFuelShot) {
     firstShiftAlliance = 'BLUE';
     firstShiftColor = '#3EDBF0';
     secondShiftAlliance = 'RED';
@@ -5407,7 +8777,7 @@ function updateMatchPrediction(teams) {
                 ${firstShiftAlliance === 'RED' ? 'FIRST' : 'SECOND'}
               </div>
               <div style="color: ${firstShiftAlliance === 'RED' ? 'white' : '#666'};font-size:14px;font-weight:normal;">
-                Auto OPR: ${redAutoOPR.toFixed(2)}
+                Avg Auto Shot: ${redAutoFuelShot.toFixed(2)}
               </div>
             </div>
             
@@ -5423,7 +8793,7 @@ function updateMatchPrediction(teams) {
                 ${firstShiftAlliance === 'BLUE' ? 'FIRST' : 'SECOND'}
               </div>
               <div style="color: ${firstShiftAlliance === 'BLUE' ? 'white' : '#666'};font-size:14px;font-weight:normal;">
-                Auto OPR: ${blueAutoOPR.toFixed(2)}
+                Avg Auto Shot: ${blueAutoFuelShot.toFixed(2)}
               </div>
             </div>
           </div>
@@ -5431,8 +8801,8 @@ function updateMatchPrediction(teams) {
           <!-- Progress bar for Alliance Shift -->
           <div style="width:100%;">
             <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;display:flex;">
-              <div style="height:100%;width:${redAutoPercentage}%;background:${redAutoOPR < blueAutoOPR ? '#ff5c5c' : '#666'};"></div>
-              <div style="height:100%;width:${blueAutoPercentage}%;background:${blueAutoOPR < redAutoOPR ? '#3EDBF0' : '#666'};"></div>
+              <div style="height:100%;width:${redAutoPercentage}%;background:${redAutoFuelShot < blueAutoFuelShot ? '#ff5c5c' : '#666'};"></div>
+              <div style="height:100%;width:${blueAutoPercentage}%;background:${blueAutoFuelShot < redAutoFuelShot ? '#3EDBF0' : '#666'};"></div>
             </div>
           </div>
         </div>

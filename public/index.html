@@ -69,10 +69,20 @@
 
             <div id="fuelOprChartContainer" style="margin-top: 20px;">
                 <div id="fuelOprChartTitle">
-                    <h3 class="chart-title" style="margin: 0;">Fuel OPR</h3>
+                    <h3 class="chart-title" style="margin: 0;">Fuel Shot</h3>
                 </div>
                 <canvas id="fuelOprChart"></canvas>
             </div>
+
+            <!-- Add this new container for Fuel Ferried chart -->
+            <div id="fuelFerriedChartContainer" style="margin-top: 20px;">
+                <div id="fuelFerriedChartTitle">
+                    <h3 class="chart-title" style="margin: 0;">Fuel Ferried</h3>
+                </div>
+                <canvas id="fuelFerriedChart"></canvas>
+            </div>
+
+
 
         </div>
 
@@ -94,9 +104,19 @@
                     <form id="rankingFilterForm" style="display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px;">
 
                         <div class="filter-group-inline">
+                            <h3>Fuel Stats</h3>
+                            <label class="checkbox-label"><input type="checkbox" value="avgAutoShot" checked> AVG Auto
+                                Shot</label>
+                            <label class="checkbox-label"><input type="checkbox" value="avgTeleShot" checked> AVG Tele
+                                Shot</label>
+                            <label class="checkbox-label"><input type="checkbox" value="avgAutoFerried" checked> AVG
+                                Auto Ferried</label>
+                            <label class="checkbox-label"><input type="checkbox" value="avgTeleFerried" checked> AVG
+                                Tele Ferried</label>
+                        </div>
+
+                        <div class="filter-group-inline">
                             <h3>Auto</h3>
-                            <label class="checkbox-label"><input type="checkbox" value="autoOPR" checked> Auto Fuel
-                                OPR</label>
                             <label class="checkbox-label"><input type="checkbox" value="autoClimbAttempts" checked> Auto
                                 Climb
                                 Attempts</label>
@@ -109,11 +129,6 @@
 
                         <div class="filter-group-inline">
                             <h3>Tele</h3>
-                            <label class="checkbox-label"><input type="checkbox" value="teleOPR" checked> Tele Fuel
-                                OPR</label>
-                            <label class="checkbox-label"><input type="checkbox" value="climbTimePerLevel" checked>
-                                Climb Time per
-                                Level</label>
                             <label class="checkbox-label"><input type="checkbox" value="avgClimbPoints" checked> AVG
                                 Climb
                                 Points</label>
@@ -135,6 +150,10 @@
                                 Defense Ratings</label>
                             <label class="checkbox-label"><input type="checkbox" value="robotDiedPercent" checked> Robot
                                 Died %</label>
+                            <label class="checkbox-label" id="autoOPRFilterLabel"><input type="checkbox" value="autoOPR"
+                                    checked> Auto OPR</label>
+                            <label class="checkbox-label" id="teleOPRFilterLabel"><input type="checkbox" value="teleOPR"
+                                    checked> Tele OPR</label>
                         </div>
 
                     </form>
@@ -216,29 +235,32 @@
                 <div class="ranking-table-container">
                     <table id="rankingTable">
                         <table id="rankingTable" style="width:100%;border-collapse:collapse; color:white;">
+                            <!-- In the ranking table thead section (around line 130), add the new column header after AVG EPA -->
+                            <!-- In the ranking table thead section (around line 130), swap Avg Auto Shot and Avg Tele Shot -->
                             <thead>
-                                <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Team</th>
-                                        <th>AVG EPA</th>
-                                        <th>AVG OPR</th>
-                                        <th>Auto OPR</th>
-                                        <th>Auto Climb<br>Attempts</th>
-                                        <th>Auto Climb<br>Successes</th>
-                                        <th>Stuck on<br>Bar</th>
-                                        <th>Tele OPR</th>
-                                        <th>Shooting Accuracy</th>
-                                        <th>Climb Time<br>per Level</th>
-                                        <th>AVG Climb<br>Points</th>
-                                        <th>Climb<br>Attempts</th>
-                                        <th>Climb<br>Successes</th>
-                                        <th>Driver<br>Skill</th>
-                                        <th>Count<br>Defense Ratings</th>
-                                        <th>MAX<br>Defense Ratings</th>
-                                        <th>Robot<br>Died %</th>
-                                    </tr>
-                                </thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Team</th>
+                                    <th>AVG EPA</th>
+                                    <th>Weighted<br>Tele Fuel</th>
+                                    <th>AVG Tele<br>Shot</th> <!-- Now first -->
+                                    <th>AVG Auto<br>Shot</th> <!-- Now second -->
+                                    <th>AVG Auto<br>Ferried</th>
+                                    <th>AVG Tele<br>Ferried</th>
+                                    <th>Auto Climb<br>Attempts</th>
+                                    <th>Auto Climb<br>Successes</th>
+                                    <th>Stuck on<br>Bar</th>
+                                    <th>Shooting Accuracy</th>
+                                    <th>AVG Climb<br>Points</th>
+                                    <th>Climb<br>Attempts</th>
+                                    <th>Climb<br>Successes</th>
+                                    <th>Driver<br>Skill</th>
+                                    <th>Count<br>Defense Ratings</th>
+                                    <th>MAX<br>Defense Ratings</th>
+                                    <th>Robot<br>Died %</th>
+                                    <th>Auto OPR</th>
+                                    <th>Tele OPR</th>
+                                </tr>
                             </thead>
                             <tbody id="rankingTableBody">
                             </tbody>
@@ -281,16 +303,16 @@
                     <div class="statsContainerText">
                         <h3>Performance</h3>
                         <div class="statsText">
+                            <p><strong>Avg. Shot:</strong> <span id="avgShot">0.00</span></p>
+                            <p><strong>Avg. Ferried:</strong> <span id="avgFerried">0.00</span></p>
                             <p><strong>EPA:</strong> <span id="averageEPA">0.00</span></p>
-                            <p><strong>Fuel OPR:</strong> <span id="totalOPR">0.00</span></p>
-                            <p><strong>Shooting Accuracy:</strong> <span id="shootingAccuracy">0.00</span></p>
                         </div>
                     </div>
                     <div class="statsContainerText">
                         <h3>Stats</h3>
                         <div class="statsText">
-                            <p><strong>Climb Time / Level:</strong> <span id="climbTimePerLevel">0.00</span></p>
                             <p><strong>Climb Success %:</strong> <span id="climbSuccessRate">0.00</span>%</p>
+                            <p><strong>Shooting Accuracy:</strong> <span id="shootingAccuracy">0.00</span></p>
                             <p><strong>Robot Died %:</strong> <span id="robotDiedRate">0.00</span>%</p>
                         </div>
                     </div>
@@ -336,6 +358,64 @@
                     <canvas id="autoClimbChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
                 </div>
 
+                <!-- Add this after the autoClimb chart container (around line 320) -->
+                <div
+                    style="background-color: #1C1E21; border-radius: 8px; padding: 16px; height: 400px; display: flex; flex-direction: column; box-shadow: #131416 0px 0px 10px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px;">
+                        <h3 style="color: white; margin: 0; font-size: 24px; text-align: left;">Auto Fuel Shot</h3>
+                        <select id="autoFuelShotFilter" class="dropdown"
+                            style="width: 120px; font-size: 18px; padding: 4px 8px;"
+                            onchange="syncIndividualViewDropdowns(this.value)">
+                            <option value="all">All</option>
+                            <option value="D">Depot</option>
+                            <option value="C">Center</option>
+                            <option value="O">Outpost</option>
+                        </select>
+                    </div>
+                    <canvas id="autoFuelShotChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                </div>
+
+                <!-- Add this after the auto fuel shot chart container -->
+                <div
+                    style="background-color: #1C1E21; border-radius: 8px; padding: 16px; height: 400px; display: flex; flex-direction: column; box-shadow: #131416 0px 0px 10px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px;">
+                        <h3 style="color: white; margin: 0; font-size: 24px; text-align: left;">Auto Fuel Ferried</h3>
+                        <select id="autoFuelFerriedFilter" class="dropdown"
+                            style="width: 120px; font-size: 18px; padding: 4px 8px;"
+                            onchange="syncIndividualViewDropdowns(this.value)">
+                            <option value="all">All</option>
+                            <option value="D">Depot</option>
+                            <option value="C">Center</option>
+                            <option value="O">Outpost</option>
+                        </select>
+                    </div>
+                    <canvas id="autoFuelFerriedChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                </div>
+
+                <!-- Add this after the auto fuel ferried chart container (around line 340) -->
+                <div
+                    style="background-color: #1C1E21; border-radius: 8px; padding: 16px; height: 400px; display: flex; flex-direction: column; box-shadow: #131416 0px 0px 10px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px;">
+                        <h3 style="color: white; margin: 0; font-size: 24px; text-align: left;">Tele Fuel Shot</h3>
+                        <!-- Removed dropdown -->
+                    </div>
+                    <canvas id="teleFuelShotChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                </div>
+
+                <!-- Add this after the tele fuel shot chart container -->
+                <div
+                    style="background-color: #1C1E21; border-radius: 8px; padding: 16px; height: 400px; display: flex; flex-direction: column; box-shadow: #131416 0px 0px 10px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px;">
+                        <h3 style="color: white; margin: 0; font-size: 24px; text-align: left;">Tele Fuel Ferried</h3>
+                        <!-- Removed dropdown -->
+                    </div>
+                    <canvas id="teleFuelFerriedChart" style="width: 100%; height: calc(100% - 40px);"></canvas>
+                </div>
+
                 <div
                     style="background-color: #1C1E21; border-radius: 8px; padding: 16px; height: 550px; display: flex; flex-direction: column; box-shadow: #131416 0px 0px 10px;">
                     <div
@@ -363,6 +443,25 @@
                     <div id="scouterComments"
                         style="color: white; font-family: 'Lato'; font-size: 14px; overflow-y: auto; flex: 1; line-height: 1.5;">
                         <p style="color: #aaa; margin: 0;">No comments available</p>
+                    </div>
+                </div>
+                <!-- Full width Tele Fuel Weighted Graph - Takes full screen width -->
+                <div style="width: 100%; margin-top: 20px; grid-column: 1 / -1;">
+                    <div
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 20px; box-shadow: #131416 0px 0px 10px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 0 10px;">
+                            <h3 style="color: white; margin: 0; font-size: 24px; font-weight: bold;">Tele Fuel Graph
+                            </h3>
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <span style="color: white; font-size: 18px;">Weighted Tele Fuel:</span>
+                                <span id="weightedTeleFuelAmount"
+                                    style="color: #FFD700; font-size: 28px; font-weight: bold;">0.00</span>
+                            </div>
+                        </div>
+                        <div style="height: 450px; width: 100%;">
+                            <canvas id="teleFuelWeightedGraph" style="width: 100%; height: 100%;"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -395,6 +494,7 @@
                         </div>
                     </div>
 
+                    <!-- For Team 1 Column - replace the existing stats div (around line 350-400) -->
                     <div
                         style="background-color: #1C1E21; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
@@ -427,18 +527,18 @@
                                 <div style="color: white; font-size: 16px;">
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Avg. Shot:</span>
+                                        <span id="comparisonAvgShot1" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Avg. Ferried:</span>
+                                        <span id="comparisonAvgFerried1" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
                                         <span style="font-weight: bold;">EPA:</span>
                                         <span id="comparisonEPA1" style="font-weight: normal;">0.00</span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Fuel OPR:</span>
-                                        <span id="comparisonTotalOPR1" style="font-weight: normal;">0.00</span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
-                                        <span id="comparisonShootingAccuracy1" style="font-weight: normal;">0.00</span>
                                     </p>
                                 </div>
                             </div>
@@ -449,21 +549,19 @@
                                 <div style="color: white; font-size: 16px;">
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Climb Time:</span>
-                                        <span style="display: flex; align-items: center; gap: 2px;">
-                                            <span id="comparisonClimbTime1">0.00</span><span>s</span>
-                                        </span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Climb Success:</span>
+                                        <span style="font-weight: bold;">Climb Success %:</span>
                                         <span style="display: flex; align-items: center; gap: 2px;">
                                             <span id="comparisonClimbRate1">0.00</span><span>%</span>
                                         </span>
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Robot Died:</span>
+                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
+                                        <span id="comparisonShootingAccuracy1" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Robot Died %:</span>
                                         <span style="display: flex; align-items: center; gap: 2px;">
                                             <span id="comparisonDiedRate1">0.00</span><span>%</span>
                                         </span>
@@ -472,6 +570,7 @@
                             </div>
                         </div>
                     </div>
+
 
                     <div class="comparison-auto-paths" data-team="1"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 300px; min-height: 300px; max-height: 300px; display: flex; flex-direction: column;">
@@ -493,6 +592,46 @@
                         </div>
                     </div>
 
+
+                    <div class="comparison-auto-fuel-shot" data-team="1"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Auto Fuel Shot</h3>
+                            <select id="comparisonAutoFuelShotFilter1" class="dropdown"
+                                style="width: 125px; padding: 4px 8px; background-color: #1C1E21; color: rgb(255, 255, 255); border: 0.5px solid #ffffff; border-radius: 4px; font-size: 20px; font-weight: lighter; cursor: pointer; outline: none; transition: border-color 0.2s ease; text-align: left;"
+                                onfocus="this.style.borderColor='#1e90ff'" onblur="this.style.borderColor='#ffffff'"
+                                onchange="filterComparisonAutoFuelShot(1)">
+                                <option value="all">All</option>
+                                <option value="D">Depot</option>
+                                <option value="C">Center</option>
+                                <option value="O">Outpost</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonAutoFuelShotChart1" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
+                    <div class="comparison-auto-fuel-ferried" data-team="1"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Auto Fuel Ferried
+                            </h3>
+                            <select id="comparisonAutoFuelFerriedFilter1" class="dropdown"
+                                style="width: 125px; padding: 4px 8px; background-color: #1C1E21; color: rgb(255, 255, 255); border: 0.5px solid #ffffff; border-radius: 4px; font-size: 20px; font-weight: lighter; cursor: pointer; outline: none; transition: border-color 0.2s ease; text-align: left;"
+                                onfocus="this.style.borderColor='#1e90ff'" onblur="this.style.borderColor='#ffffff'"
+                                onchange="filterComparisonAutoFuelFerried(1)">
+                                <option value="all">All</option>
+                                <option value="D">Depot</option>
+                                <option value="C">Center</option>
+                                <option value="O">Outpost</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonAutoFuelFerriedChart1" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
                     <div class="comparison-auto-climb" data-team="1"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
                         <div
@@ -512,7 +651,29 @@
                             <canvas id="comparisonAutoClimbChart1" style="width: 100%; height: 100%;"></canvas>
                         </div>
                     </div>
-
+                    <div class="comparison-tele-fuel-shot" data-team="1"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Shot</h3>
+                            <!-- No dropdown for tele fuel shot as per individual view -->
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelShotChart1" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
+                    <div class="comparison-tele-fuel-ferried" data-team="1"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Ferried
+                            </h3>
+                            <!-- No dropdown for tele fuel ferried as per individual view -->
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelFerriedChart1" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
                     <div class="comparison-tele-climb" data-team="1"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 550px; min-height: 550px; max-height: 550px;">
                         <div
@@ -541,6 +702,22 @@
                             style="color: white; font-size: 15px; line-height: 1.6; width: 100%; overflow-y: auto; flex: 1; min-height: 0;">
                         </div>
                     </div>
+                    <div class="comparison-tele-fuel-weighted" data-team="1"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 450px; min-height: 450px; max-height: 450px; margin-top: 20px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Graph
+                            </h3>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: white; font-size: 16px;">Weighted:</span>
+                                <span id="comparisonWeightedTeleFuel1"
+                                    style="color: #FFD700; font-size: 20px; font-weight: bold;">0.00</span>
+                            </div>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelWeightedGraph1" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 20px; width: 49%;" id="team2Column">
@@ -561,6 +738,7 @@
                         </div>
                     </div>
 
+                    <!-- For Team 2 Column - replace the existing stats div (around line 450-500) -->
                     <div
                         style="background-color: #1C1E21; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
@@ -593,18 +771,18 @@
                                 <div style="color: white; font-size: 16px;">
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Avg. Shot:</span>
+                                        <span id="comparisonAvgShot2" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Avg. Ferried:</span>
+                                        <span id="comparisonAvgFerried2" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
                                         <span style="font-weight: bold;">EPA:</span>
                                         <span id="comparisonEPA2" style="font-weight: normal;">0.00</span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Fuel OPR:</span>
-                                        <span id="comparisonTotalOPR2" style="font-weight: normal;">0.00</span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
-                                        <span id="comparisonShootingAccuracy2" style="font-weight: normal;">0.00</span>
                                     </p>
                                 </div>
                             </div>
@@ -615,21 +793,19 @@
                                 <div style="color: white; font-size: 16px;">
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Climb Time:</span>
-                                        <span style="display: flex; align-items: center; gap: 2px;">
-                                            <span id="comparisonClimbTime2">0.00</span><span>s</span>
-                                        </span>
-                                    </p>
-                                    <p
-                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Climb Success:</span>
+                                        <span style="font-weight: bold;">Climb Success %:</span>
                                         <span style="display: flex; align-items: center; gap: 2px;">
                                             <span id="comparisonClimbRate2">0.00</span><span>%</span>
                                         </span>
                                     </p>
                                     <p
                                         style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold;">Robot Died:</span>
+                                        <span style="font-weight: bold;">Shooting Accuracy:</span>
+                                        <span id="comparisonShootingAccuracy2" style="font-weight: normal;">0.00</span>
+                                    </p>
+                                    <p
+                                        style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold;">Robot Died %:</span>
                                         <span style="display: flex; align-items: center; gap: 2px;">
                                             <span id="comparisonDiedRate2">0.00</span><span>%</span>
                                         </span>
@@ -638,6 +814,7 @@
                             </div>
                         </div>
                     </div>
+
 
                     <div class="comparison-auto-paths" data-team="2"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 300px; min-height: 300px; max-height: 300px; display: flex; flex-direction: column;">
@@ -659,6 +836,45 @@
                         </div>
                     </div>
 
+                    <div class="comparison-auto-fuel-shot" data-team="2"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Auto Fuel Shot</h3>
+                            <select id="comparisonAutoFuelShotFilter2" class="dropdown"
+                                style="width: 125px; padding: 4px 8px; background-color: #1C1E21; color: rgb(255, 255, 255); border: 0.5px solid #ffffff; border-radius: 4px; font-size: 20px; font-weight: lighter; cursor: pointer; outline: none; transition: border-color 0.2s ease; text-align: left;"
+                                onfocus="this.style.borderColor='#1e90ff'" onblur="this.style.borderColor='#ffffff'"
+                                onchange="filterComparisonAutoFuelShot(2)">
+                                <option value="all">All</option>
+                                <option value="D">Depot</option>
+                                <option value="C">Center</option>
+                                <option value="O">Outpost</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonAutoFuelShotChart2" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
+                    <div class="comparison-auto-fuel-ferried" data-team="2"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Auto Fuel Ferried
+                            </h3>
+                            <select id="comparisonAutoFuelFerriedFilter2" class="dropdown"
+                                style="width: 125px; padding: 4px 8px; background-color: #1C1E21; color: rgb(255, 255, 255); border: 0.5px solid #ffffff; border-radius: 4px; font-size: 20px; font-weight: lighter; cursor: pointer; outline: none; transition: border-color 0.2s ease; text-align: left;"
+                                onfocus="this.style.borderColor='#1e90ff'" onblur="this.style.borderColor='#ffffff'"
+                                onchange="filterComparisonAutoFuelFerried(2)">
+                                <option value="all">All</option>
+                                <option value="D">Depot</option>
+                                <option value="C">Center</option>
+                                <option value="O">Outpost</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonAutoFuelFerriedChart2" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
                     <div class="comparison-auto-climb" data-team="2"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
                         <div
@@ -679,6 +895,29 @@
                         </div>
                     </div>
 
+                    <div class="comparison-tele-fuel-shot" data-team="2"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Shot</h3>
+                            <!-- No dropdown for tele fuel shot as per individual view -->
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelShotChart2" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
+                    <div class="comparison-tele-fuel-ferried" data-team="2"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 400px; min-height: 400px; max-height: 400px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Ferried
+                            </h3>
+                            <!-- No dropdown for tele fuel ferried as per individual view -->
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelFerriedChart2" style="width: 100%; height: 100%;"></canvas>
+                        </div>
+                    </div>
                     <div class="comparison-tele-climb" data-team="2"
                         style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 550px; min-height: 550px; max-height: 550px;">
                         <div
@@ -705,6 +944,22 @@
                             Comments</h3>
                         <div id="comparisonComments2"
                             style="color: white; font-size: 15px; line-height: 1.6; width: 100%; overflow-y: auto; flex: 1; min-height: 0;">
+                        </div>
+                    </div>
+                    <div class="comparison-tele-fuel-weighted" data-team="2"
+                        style="background-color: #1C1E21; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 450px; min-height: 450px; max-height: 450px; margin-top: 20px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="color: white; margin: 0; font-size: 20px; font-weight: bold;">Tele Fuel Graph
+                            </h3>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: white; font-size: 16px;">Weighted:</span>
+                                <span id="comparisonWeightedTeleFuel2"
+                                    style="color: #FFD700; font-size: 20px; font-weight: bold;">0.00</span>
+                            </div>
+                        </div>
+                        <div style="flex: 1; min-height: 0; width: 100%; height: calc(100% - 60px);">
+                            <canvas id="comparisonTeleFuelWeightedGraph2" style="width: 100%; height: 100%;"></canvas>
                         </div>
                     </div>
                 </div>
@@ -838,7 +1093,8 @@
                                     <select id="filterTeamsDropdown" class="dropdown"
                                         style="font-size: 16px; padding: 6px 10px; vertical-align: middle;">
                                         <option value="EPA">Avg. EPA</option>
-                                        <option value="avgOPR">Fuel OPR</option>
+                                        <option value="avgShot">Avg. Shot</option>
+                                        <option value="avgFerried">Avg. Ferried</option>
                                     </select>
                                 </div>
                             </div>
@@ -883,7 +1139,7 @@
                     <input type="text" id="matchNumberInput"
                         style="width: 75px; text-align: center; padding: 4px; border-radius: 4px; border-top: 2px solid transparent; border-left: 2px solid transparent; border-right: 2px solid transparent; border-bottom: 2px solid white; background-color: #1C1E21; color: #fff; font-family: 'Lato'; font-size: large; transition: border-color 0.2s ease; outline: none;"
                         autocomplete="off">
-                    <button onclick="populateMatchTeams()" id="predict-button"
+                    <button id="predict-button" onclick="handlePredictClick()"
                         style="padding: 8px 16px; min-width: 75px;">Predict</button>
                 </div>
             </div>
@@ -960,13 +1216,15 @@
                         </div>
                         <div id="statusSchedule"></div>
 
-                        <label for="oprFile">OPR CSV:</label>
-                        <div class="file-upload-container">
-                            <input type="file" id="oprFile" name="dataFile" accept=".csv" />
-                            <button type="submit" id="submitOPR" style="margin-left: 10px;"> Upload</button>
-                            <button type="button" class="delete-btn" onclick="deleteFile('oprFile')">Delete</button>
+                        <div style="display: none;">
+                            <label for="oprFile">OPR CSV:</label>
+                            <div class="file-upload-container">
+                                <input type="file" id="oprFile" name="dataFile" accept=".csv" />
+                                <button type="submit" id="submitOPR" style="margin-left: 10px;"> Upload</button>
+                                <button type="button" class="delete-btn" onclick="deleteFile('oprFile')">Delete</button>
+                            </div>
+                            <div id="statusOPR"></div>
                         </div>
-                        <div id="statusOPR"></div>
                     </div>
 
 
@@ -982,6 +1240,20 @@
 
     <script src="js/script.js"></script>
     <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('service-worker.js');
+            });
+        }
+    </script>
+    <script>
+        function isMobileDevice() {
+            return /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+        }
+
+        if (isMobileDevice()) {
+            window.location.href = "mobile.html";
+        }
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('service-worker.js');

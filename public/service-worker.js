@@ -1,11 +1,15 @@
-const CACHE_NAME = 'sharkscout-cache-v3';
+const CACHE_NAME = 'sharkscout-cache-tele-fuel-lake-city';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/script.js',
   '/lato-v24-latin-regular.woff2',
-  '/images/down_arrow.png'
+  '/images/down_arrow.png',
+  'mobile.html',
+  'css/mobile.css',
+  'js/mobile.js',
+  'images/menu.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -404,7 +404,8 @@ label {
 }
 
 #overviewStackedChartContainer,
-#fuelOprChartContainer {
+#fuelOprChartContainer,
+#fuelFerriedChartContainer{
     width: 100%;
     background-color: #1C1E21;
     border-radius: 12px;
@@ -413,10 +414,12 @@ label {
     display: flex;
     flex-direction: column;
     align-items: center;
+
 }
 
 #overviewStackedChartTitle,
-#fuelOprChartTitle {
+#fuelOprChartTitle,
+#fuelFerriedChartTitle {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -426,7 +429,8 @@ label {
 
 
 #overviewStackedChart,
-#fuelOprChart {
+#fuelOprChart,
+#fuelFerriedChart {
     width: 100% !important;
     height: 600px !important;
     display: block;
@@ -1851,4 +1855,54 @@ input:checked+.slider:before {
 
 #submitData:hover, #submitPit:hover, #submitSchedule:hover, #submitOPR:hover {
     background-color: #0b7ad1;
+}
+
+#rankingTable thead th {
+    position: sticky;
+    top: 0;
+    background-color: #23242a;
+    z-index: 1002; /* Increased from 1001 */
+    padding: 12px 18px;
+    border: none;
+    border-right: 1px solid #444;
+    border-bottom: 2px solid #1e90ff;
+    box-shadow: 0 2px 8px #131416;
+}
+
+#rankingTable thead th:first-child {
+    z-index: 1004 !important; /* Increased from 1002 */
+}
+
+#rankingTable thead th:nth-child(2) {
+    z-index: 1004 !important; /* Increased from 1002 */
+}
+
+#rankingTable th:first-child,
+#rankingTable td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1000;
+    background-color: #23242a;
+    border-right: 1px solid #333;
+    width: 60px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+#rankingTable th:nth-child(2),
+#rankingTable td:nth-child(2) {
+    position: sticky;
+    left: 60px;
+    z-index: 1000;
+    background-color: #23242a;
+    border-right: 1px solid #333;
+    width: 120px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+#rankingTable tbody tr.team-226 td:first-child,
+#rankingTable tbody tr.team-226 td:nth-child(2) {
+    background-color: #02274d !important;
+    color: white !important;
+    font-weight: bold;
+    z-index: 1001 !important; /* Changed from 1003 to be lower than header */
 }
