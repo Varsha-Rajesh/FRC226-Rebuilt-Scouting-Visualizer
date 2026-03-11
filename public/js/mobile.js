@@ -3349,392 +3349,370 @@ function calculateMobileMatchPrediction(redTeams, blueTeams) {
 // Replace the renderMobileMatchSummary function in mobile.js with this updated version
 
 function renderMobileMatchSummary(teams) {
-    const summaryContainer = document.getElementById('mobileSummaryContent');
+  console.log("renderMatchSummary called with teams:", teams);
+  const summaryDiv = document.getElementById('matchSummaryTable');
 
-    if (!summaryContainer) return;
+  if (!summaryDiv) return;
 
-    if (teams.length === 0) {
-        summaryContainer.innerHTML = '<p style="color: #aaa; text-align: center; padding: 20px;">No teams to display</p>';
-        return;
-    }
+  const eventData = parseCSV().data;
 
-    const calculateTeamEPA = (team) => {
-        if (!team) return 0;
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
+  const calculateTeamEPA = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
 
-        const totalPoints = teamMatches
-            .map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0))
-            .filter(v => !isNaN(v));
+    const totalPoints = teamMatches
+      .map(row => parseFloat(row['Total Points'] || row['Total Score'] || 0))
+      .filter(v => !isNaN(v));
 
-        const avgTotalPoints = totalPoints.length > 0
-            ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length
-            : 0;
+    const avgTotalPoints = totalPoints.length > 0
+      ? totalPoints.reduce((a, b) => a + b, 0) / totalPoints.length
+      : 0;
 
-        return Math.round(avgTotalPoints);
+    return Math.round(avgTotalPoints); // Round to whole number
+  };
+
+  const calculateAutoShot = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const autoShots = teamMatches
+      .map(row => parseFloat(row['Auto Fuel Shot'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgAutoShot = autoShots.length > 0
+      ? autoShots.reduce((a, b) => a + b, 0) / autoShots.length
+      : 0;
+
+    return Math.round(avgAutoShot); // Round to whole number
+  };
+
+  const calculateTeleShot = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const teleShots = teamMatches
+      .map(row => parseFloat(row['Tele Fuel Shot'] || 0))
+      .filter(v => !isNaN(v));
+
+    const avgTeleShot = teleShots.length > 0
+      ? teleShots.reduce((a, b) => a + b, 0) / teleShots.length
+      : 0;
+
+    return Math.round(avgTeleShot); // Round to whole number
+  };
+
+  // Calculate total climb attempts as a single number
+  const calculateClimbAttempts = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const climbValues = teamMatches
+      .map(row => row['Climb Teleop']?.toString().trim())
+      .filter(v => v && v !== '' && ['1', '2', '3', 'F'].includes(v));
+
+    return climbValues.length;
+  };
+
+  const calculateClimbRate = (team) => {
+    if (!team) return '0.0%';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const climbValues = teamMatches
+      .map(row => row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim())
+      .filter(v => v && v !== '');
+
+    const successfulClimbs = climbValues.filter(v => ['1', '2', '3'].includes(v)).length;
+    const totalClimbAttempts = climbValues.filter(v => ['1', '2', '3', 'F'].includes(v)).length;
+
+    if (totalClimbAttempts === 0) return '0.0%';
+    const rate = ((successfulClimbs / totalClimbAttempts) * 100).toFixed(1);
+    return rate + '%';
+  };
+
+  const calculateShootingAccuracy = (team) => {
+    if (!team) return '0.0';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const shootingValues = teamMatches
+      .map(row => parseFloat(row['Shooting Accuracy']))
+      .filter(v => !isNaN(v) && [0, 1, 2, 3].includes(v));
+
+    if (shootingValues.length === 0) return '0.0';
+    const avgAccuracy = shootingValues.reduce((a, b) => a + b, 0) / shootingValues.length;
+    return avgAccuracy.toFixed(1);
+  };
+
+  const calculateDiedAndMissingRate = (team) => {
+    if (!team) return { diedRate: '0%', missingRate: '0%', diedMatches: [], missingMatches: [] };
+
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    });
+
+    if (teamMatches.length === 0) return { diedRate: '0%', missingRate: '0%', diedMatches: [], missingMatches: [] };
+
+    const diedMatches = teamMatches
+      .filter(row => {
+        const died = row['Robot Died']?.toString().trim() || row['Died or Immobilized']?.toString().trim();
+        const startingPosition = row['Starting Position']?.toString().trim();
+        return (died === '1' || died === '0.5' || died === 'true') && startingPosition !== 'R';
+      })
+      .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
+      .filter(m => m);
+
+    const missingMatches = teamMatches
+      .filter(row => {
+        const startingPosition = row['Starting Position']?.toString().trim();
+        return startingPosition === 'R';
+      })
+      .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
+      .filter(m => m);
+
+    const diedCount = diedMatches.length;
+    const missingCount = missingMatches.length;
+    const totalMatches = teamMatches.length;
+
+    const diedRate = Math.round((diedCount / totalMatches) * 100) + '%';
+    const missingRate = Math.round((missingCount / totalMatches) * 100) + '%';
+
+    return {
+      diedRate,
+      missingRate,
+      diedMatches: diedMatches.sort((a, b) => {
+        const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
+        const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
+        return numA - numB;
+      }),
+      missingMatches: missingMatches.sort((a, b) => {
+        const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
+        const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
+        return numA - numB;
+      })
     };
+  };
 
-    const calculateAutoShot = (team) => {
-        if (!team) return 0;
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
+  const calculateAvgDefenseRating = (team) => {
+    if (!team) return '0.0';
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
 
-        const autoShots = teamMatches
-            .map(row => parseFloat(row['Auto Fuel Shot'] || 0))
-            .filter(v => !isNaN(v));
+    const defenseRatings = teamMatches
+      .map(row => {
+        const defense = parseFloat(row['Robot Defense'] || row['Defense Rating'] || 0);
+        return defense;
+      })
+      .filter(rating => !isNaN(rating) && rating > 0);
 
-        const avgAutoShot = autoShots.length > 0
-            ? autoShots.reduce((a, b) => a + b, 0) / autoShots.length
-            : 0;
+    if (defenseRatings.length === 0) return '0.0';
 
-        return Math.round(avgAutoShot);
-    };
+    const avg = defenseRatings.reduce((a, b) => a + b, 0) / defenseRatings.length;
+    return avg.toFixed(1);
+  };
 
-    const calculateTeleShot = (team) => {
-        if (!team) return 0;
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
-
-        const teleShots = teamMatches
-            .map(row => parseFloat(row['Tele Fuel Shot'] || 0))
-            .filter(v => !isNaN(v));
-
-        const avgTeleShot = teleShots.length > 0
-            ? teleShots.reduce((a, b) => a + b, 0) / teleShots.length
-            : 0;
-
-        return Math.round(avgTeleShot);
-    };
-
-    const calculateClimbRate = (team) => {
-        if (!team) return '0.0%';
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
-
-        const climbValues = teamMatches
-            .map(row => row['Climb Teleop']?.toString().trim())
-            .filter(v => v && v !== '');
-
-        const successfulClimbs = climbValues.filter(v => ['1', '2', '3'].includes(v)).length;
-        const totalClimbAttempts = climbValues.filter(v => ['1', '2', '3', 'F'].includes(v)).length;
-
-        if (totalClimbAttempts === 0) return '0.0%';
-        const rate = ((successfulClimbs / totalClimbAttempts) * 100).toFixed(1);
-        return rate + '%';
-    };
-
-    const calculateShootingAccuracy = (team) => {
-        if (!team) return '0.0';
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
-
-        const shootingValues = teamMatches
-            .map(row => parseFloat(row['Shooting Accuracy']))
-            .filter(v => !isNaN(v) && [0, 1, 2, 3].includes(v));
-
-        if (shootingValues.length === 0) return '0.0';
-        const avgAccuracy = shootingValues.reduce((a, b) => a + b, 0) / shootingValues.length;
-        return avgAccuracy.toFixed(1);
-    };
-
-    const getMostCommonClimb = (team) => {
-        if (!team) return 'N/A';
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
-
-        const climbValues = teamMatches
-            .map(row => row['Climb Teleop']?.toString().trim())
-            .filter(v => v && v !== '' && v !== '0' && v !== 'F');
-
-        if (climbValues.length === 0) return 'N/A';
-
-        const climbCounts = { '1': 0, '2': 0, '3': 0 };
-        climbValues.forEach(value => {
-            if (climbCounts.hasOwnProperty(value)) {
-                climbCounts[value]++;
-            }
-        });
-
-        let mostCommonLevel = '1';
-        let maxCount = 0;
-
-        ['3', '2', '1'].forEach(level => {
-            if (climbCounts[level] >= maxCount) {
-                maxCount = climbCounts[level];
-                mostCommonLevel = level;
-            }
-        });
-
-        switch (mostCommonLevel) {
-            case '1': return 'L1';
-            case '2': return 'L2';
-            case '3': return 'L3';
-            default: return 'N/A';
-        }
-    };
-
-    const calculateAvgDefenseRating = (team) => {
-        if (!team) return '0.0';
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        }).filter(row => {
-            const startingPosition = row['Starting Position']?.toString().trim();
-            return startingPosition !== 'R';
-        });
-
-        const defenseRatings = teamMatches
-            .map(row => {
-                const defense = parseFloat(row['Robot Defense'] || row['Defense Rating'] || 0);
-                return defense;
-            })
-            .filter(rating => !isNaN(rating) && rating > 0);
-
-        if (defenseRatings.length === 0) return '0.0';
-
-        const avg = defenseRatings.reduce((a, b) => a + b, 0) / defenseRatings.length;
-        return avg.toFixed(1);
-    };
-
-    const calculateDiedAndMissing = (team) => {
-        if (!team) return { diedMatches: [], missingMatches: [] };
-
-        const teamMatches = mobileEventData.filter(row => {
-            const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-            return teamNum === team;
-        });
-
-        const diedMatches = teamMatches
-            .filter(row => {
-                const died = row['Robot Died']?.toString().trim() || row['Died or Immobilized']?.toString().trim();
-                const startingPosition = row['Starting Position']?.toString().trim();
-                return (died === '1' || died === '0.5' || died === 'true') && startingPosition !== 'R';
-            })
-            .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
-            .filter(m => m);
-
-        const missingMatches = teamMatches
-            .filter(row => {
-                const startingPosition = row['Starting Position']?.toString().trim();
-                return startingPosition === 'R';
-            })
-            .map(row => row['Match Number'] || row['Match No.'] || 'Unknown')
-            .filter(m => m);
-
-        return {
-            diedMatches: diedMatches.sort((a, b) => {
-                const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
-                const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
-                return numA - numB;
-            }),
-            missingMatches: missingMatches.sort((a, b) => {
-                const numA = parseInt(a.toString().replace(/[^0-9]/g, '')) || 0;
-                const numB = parseInt(b.toString().replace(/[^0-9]/g, '')) || 0;
-                return numA - numB;
-            })
-        };
-    };
-
-    let summaryHTML = `
+  let summaryHTML = `
         <style>
-            .mobile-summary-table {
-                width: 100%;
-                border-collapse: collapse;
-                color: white;
-                font-family: 'Lato', sans-serif;
-                font-size: 14px;
-            }
-            .mobile-summary-table th {
-                padding: 12px 8px;
-                text-align: center;
-                color: white;
-                font-weight: bold;
-                border-bottom: 2px solid white;
-            }
-            .mobile-summary-table td {
-                padding: 10px 8px;
-                text-align: center;
-                color: white;
-                border-bottom: 1px solid #333;
-            }
-            .team-cell-wrapper {
-                position: relative;
-                display: inline-block;
-                cursor: pointer;
-            }
-            .team-cell-wrapper:hover .death-tooltip {
-                display: block !important;
-            }
-            .death-tooltip {
-                display: none;
-                position: absolute;
-                top: 50%;
-                left: 100%;
-                transform: translateY(-50%);
-                margin-left: 12px;
-                background-color: #23242a;
-                color: white;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-family: 'Lato', sans-serif;
-                white-space: nowrap;
-                z-index: 1000;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-                border: 1px solid;
-            }
-            .death-tooltip-row {
-                display: flex;
-                gap: 12px;
-                margin-bottom: 4px;
-            }
-            .death-tooltip-row:last-child {
-                margin-bottom: 0;
-            }
-            .death-tooltip-label {
-                font-weight: bold;
-                min-width: 70px;
-            }
-            .death-tooltip-value {
-                font-weight: bold;
-                color: white;
-            }
-            .death-tooltip-team {
-                font-weight: bold;
-                margin-bottom: 8px;
-                font-size: 14px;
-                text-align: center;
-            }
+          .team-cell-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+          }
+          .team-cell-wrapper:hover .death-tooltip {
+            display: block !important;
+          }
+          .death-tooltip {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 100%;
+            transform: translateY(-50%);
+            margin-left: 12px;
+            background-color: #23242a;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Lato', sans-serif;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            border: 1px solid;
+          }
+          .death-tooltip-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 4px;
+          }
+          .death-tooltip-row:last-child {
+            margin-bottom: 0;
+          }
+          .death-tooltip-label {
+            font-weight: bold;
+            min-width: 70px;
+          }
+          .death-tooltip-value {
+            font-weight: bold;
+            color: white;
+          }
+          .death-tooltip-team {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-align: center;
+          }
         </style>
         <div style="background-color: #1C1E21; border-radius: 12px; padding: 20px; margin-top: 20px; overflow-x: auto; width: 100%; max-width: 100%; box-sizing: border-box;">
-            <table class="mobile-summary-table">
+            <h3 style="color: white; margin: 0 0 20px 0; font-size: 20px; font-family: 'Lato', sans-serif; padding-bottom: 10px; border-bottom: 2px solid #1e90ff;">
+                Match Summary
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; color: white; font-family: 'Lato', sans-serif; table-layout: auto;">
                 <thead>
-                    <tr>
-                        <th>Team</th>
-                        <th>EPA</th>
-                        <th>Auto Shot</th>
-                        <th>Tele Shot</th>
-                        <th>Shooting Acc</th>
-                        <th>Most Common</th>
-                        <th>Climb Rate</th>
-                        <th>Defense</th>
+                    <tr style="border-bottom: 2px solid white;">
+                        <th style="padding: 12px 8px; text-align: left; color: white; font-weight: bold;">Team</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">EPA</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Auto Shot</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Tele Shot</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Shooting Acc</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Attempts</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Rate</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Defense</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-    teams.forEach((team, index) => {
-        if (!team) return;
+  teams.forEach((team, index) => {
+    if (!team) return;
 
-        const alliance = index < 3 ? 'Red' : 'Blue';
-        const allianceColor = alliance === 'Red' ? '#ff5c5c' : '#3EDBF0';
-        const bgColor = alliance === 'Red' ? '#ff5c5c30' : '#3EDBF030';
-        const epa = calculateTeamEPA(team);
-        const autoShot = calculateAutoShot(team);
-        const teleShot = calculateTeleShot(team);
-        const shootingAccuracy = calculateShootingAccuracy(team);
-        const mostCommonClimb = getMostCommonClimb(team);
-        const climbRate = calculateClimbRate(team);
-        const defenseRating = calculateAvgDefenseRating(team);
-        const { diedMatches, missingMatches } = calculateDiedAndMissing(team);
+    const alliance = index < 3 ? 'Red' : 'Blue';
+    const allianceColor = alliance === 'Red' ? '#ff5c5c' : '#3EDBF0';
+    const epa = calculateTeamEPA(team);
+    const autoShot = calculateAutoShot(team);
+    const teleShot = calculateTeleShot(team);
+    const shootingAccuracy = calculateShootingAccuracy(team);
+    const climbAttempts = calculateClimbAttempts(team);
+    const climbRate = calculateClimbRate(team);
+    const { diedRate, missingRate, diedMatches, missingMatches } = calculateDiedAndMissingRate(team);
+    const defenseRating = calculateAvgDefenseRating(team);
+    const teamCellBg = alliance === 'Red' ? '#ff5c5c30' : '#3EDBF030';
 
-        let teamDisplay = team;
-        let tooltipHTML = '';
+    let teamDisplay = team;
+    let tooltipHTML = '';
 
-        const hasIssues = diedMatches.length > 0 || missingMatches.length > 0;
+    const hasIssues = diedMatches.length > 0 || missingMatches.length > 0;
 
-        if (hasIssues) {
-            teamDisplay = `⚠️${team}`;
+    if (hasIssues) {
+      teamDisplay = `⚠️${team}`;
 
-            tooltipHTML = `<div class="death-tooltip" style="border-color: ${allianceColor};">`;
-            tooltipHTML += `<div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>`;
+      tooltipHTML = `<div class="death-tooltip" style="border-color: ${allianceColor};">`;
 
-            if (diedMatches.length > 0) {
-                const matchesStr = diedMatches.join(', ');
-                tooltipHTML += `
-                    <div class="death-tooltip-row">
-                        <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
-                        <span class="death-tooltip-value">${matchesStr}</span>
-                    </div>
-                `;
-            } else {
-                tooltipHTML += `
-                    <div class="death-tooltip-row">
-                        <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
-                        <span class="death-tooltip-value">None</span>
-                    </div>
-                `;
-            }
+      tooltipHTML += `<div class="death-tooltip-team" style="color: ${allianceColor};">${team}</div>`;
 
-            if (missingMatches.length > 0) {
-                const matchesStr = missingMatches.join(', ');
-                tooltipHTML += `
-                    <div class="death-tooltip-row">
-                        <span class="death-tooltip-label" style="color: ${allianceColor};">Missing:</span>
-                        <span class="death-tooltip-value">${matchesStr}</span>
-                    </div>
-                `;
-            }
+      tooltipHTML += `
+        <div class="death-tooltip-row">
+          <span class="death-tooltip-label" style="color: ${allianceColor};">Died %:</span>
+          <span class="death-tooltip-value">${diedRate}</span>
+        </div>
+      `;
 
-            tooltipHTML += `</div>`;
-        }
-
-        summaryHTML += `
-            <tr>
-                <td style="background-color: ${bgColor};">
-                    <span class="team-cell-wrapper">
-                        ${teamDisplay}
-                        ${tooltipHTML}
-                    </span>
-                </td>
-                <td>${epa}</td>
-                <td>${autoShot}</td>
-                <td>${teleShot}</td>
-                <td>${shootingAccuracy}</td>
-                <td>${mostCommonClimb}</td>
-                <td>${climbRate}</td>
-                <td>${defenseRating}</td>
-            </tr>
+      if (diedMatches.length > 0) {
+        const matchesStr = diedMatches.join(', ');
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
+            <span class="death-tooltip-value">${matchesStr}</span>
+          </div>
         `;
-    });
+      } else {
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Died:</span>
+            <span class="death-tooltip-value">None</span>
+          </div>
+        `;
+      }
+
+      if (missingMatches.length > 0) {
+        const matchesStr = missingMatches.join(', ');
+        tooltipHTML += `
+          <div class="death-tooltip-row">
+            <span class="death-tooltip-label" style="color: ${allianceColor};">Missing:</span>
+            <span class="death-tooltip-value">${matchesStr}</span>
+          </div>
+        `;
+      }
+
+      tooltipHTML += `</div>`;
+    }
 
     summaryHTML += `
+            <tr>
+                <td style="padding: 10px 8px; background-color: ${teamCellBg}; color: white; font-weight: bold;">
+                  <span class="team-cell-wrapper">
+                    ${teamDisplay}
+                    ${tooltipHTML}
+                  </span>
+                </td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${epa}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${autoShot}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${teleShot}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${shootingAccuracy}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${climbAttempts}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${climbRate}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${defenseRating}</td>
+            </tr>
+        `;
+  });
+
+  summaryHTML += `
                 </tbody>
             </table>
         </div>
     `;
 
-    summaryContainer.innerHTML = summaryHTML;
+  summaryDiv.innerHTML = summaryHTML;
+  console.log("Summary HTML inserted");
 }
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.red-alliance').forEach(input => {

@@ -2434,3 +2434,54 @@ input[id^="predictionBlue"]::placeholder {
     }
 }
 
+.menu-button {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 44px;  /* Increased from 32px */
+    height: 44px; /* Increased from 32px */
+    background-color: #1C1E21;
+    border-radius: 8px; /* Slightly larger border radius to match */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid #333;
+}
+
+.menu-button img {
+    width: 24px;  /* Increased from 18px */
+    height: 24px; /* Increased from 18px */
+}
+
+/* Update landscape orientation styles */
+@media (orientation: landscape) {
+    .menu-button {
+        top: 8px;
+        left: 8px;
+        width: 40px;  /* Slightly smaller in landscape but still bigger than before */
+        height: 40px;
+    }
+
+    .menu-button img {
+        width: 22px;
+        height: 22px;
+    }
+}
+
+/* Update for very small landscape heights */
+@media (orientation: landscape) and (max-height: 400px) {
+    .menu-button {
+        top: 5px;
+        left: 5px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .menu-button img {
+        width: 20px;
+        height: 20px;
+    }
+}

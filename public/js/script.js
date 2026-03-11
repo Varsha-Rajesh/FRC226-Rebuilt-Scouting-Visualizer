@@ -8279,6 +8279,23 @@ function renderMatchSummary(teams) {
     return avgTeleShot;
   };
 
+  const calculateClimbAttempts = (team) => {
+    if (!team) return 0;
+    const teamMatches = eventData.filter(row => {
+      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
+      return teamNum === team;
+    }).filter(row => {
+      const startingPosition = row['Starting Position']?.toString().trim();
+      return startingPosition !== 'R';
+    });
+
+    const climbValues = teamMatches
+      .map(row => row['Climb Teleop']?.toString().trim())
+      .filter(v => v && v !== '' && ['1', '2', '3', 'F'].includes(v));
+
+    return climbValues.length;
+  };
+
   const calculateClimbRate = (team) => {
     if (!team) return '0.0%';
     const teamMatches = eventData.filter(row => {
@@ -8318,47 +8335,6 @@ function renderMatchSummary(teams) {
     if (shootingValues.length === 0) return '0.0';
     const avgAccuracy = shootingValues.reduce((a, b) => a + b, 0) / shootingValues.length;
     return avgAccuracy.toFixed(1);
-  };
-
-  const getMostCommonClimb = (team) => {
-    if (!team) return 'N/A';
-    const teamMatches = eventData.filter(row => {
-      const teamNum = row['Team Number']?.toString().trim() || row['Team No.']?.toString().trim();
-      return teamNum === team;
-    }).filter(row => {
-      const startingPosition = row['Starting Position']?.toString().trim();
-      return startingPosition !== 'R';
-    });
-
-    const climbValues = teamMatches
-      .map(row => row['Climb Teleop']?.toString().trim() || row['Climb Score']?.toString().trim())
-      .filter(v => v && v !== '' && v !== '0' && v !== 'F');
-
-    if (climbValues.length === 0) return 'N/A';
-
-    const climbCounts = { '1': 0, '2': 0, '3': 0 };
-    climbValues.forEach(value => {
-      if (climbCounts.hasOwnProperty(value)) {
-        climbCounts[value]++;
-      }
-    });
-
-    let mostCommonLevel = '1';
-    let maxCount = 0;
-
-    ['3', '2', '1'].forEach(level => {
-      if (climbCounts[level] >= maxCount) {
-        maxCount = climbCounts[level];
-        mostCommonLevel = level;
-      }
-    });
-
-    switch (mostCommonLevel) {
-      case '1': return 'L1';
-      case '2': return 'L2';
-      case '3': return 'L3';
-      default: return 'N/A';
-    }
   };
 
   const calculateDiedAndMissingRate = (team) => {
@@ -8497,7 +8473,7 @@ function renderMatchSummary(teams) {
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Auto Shot</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Tele Shot</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Shooting Acc</th>
-                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Most Common</th>
+                        <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Attempts</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Climb Rate</th>
                         <th style="padding: 12px 8px; text-align: center; color: white; font-weight: bold;">Defense</th>
                     </tr>
@@ -8514,7 +8490,7 @@ function renderMatchSummary(teams) {
     const autoShot = calculateAutoShot(team);
     const teleShot = calculateTeleShot(team);
     const shootingAccuracy = calculateShootingAccuracy(team);
-    const mostCommonClimb = getMostCommonClimb(team);
+    const climbAttempts = calculateClimbAttempts(team);
     const climbRate = calculateClimbRate(team);
     const { diedRate, missingRate, diedMatches, missingMatches } = calculateDiedAndMissingRate(team);
     const defenseRating = calculateAvgDefenseRating(team);
@@ -8581,7 +8557,7 @@ function renderMatchSummary(teams) {
                 <td style="padding: 10px 8px; text-align: center; color: white;">${autoShot.toFixed(2)}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${teleShot.toFixed(2)}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${shootingAccuracy}</td>
-                <td style="padding: 10px 8px; text-align: center; color: white;">${mostCommonClimb}</td>
+                <td style="padding: 10px 8px; text-align: center; color: white;">${climbAttempts}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${climbRate}</td>
                 <td style="padding: 10px 8px; text-align: center; color: white;">${defenseRating}</td>
             </tr>

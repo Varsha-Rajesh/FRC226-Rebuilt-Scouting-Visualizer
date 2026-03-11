@@ -1245,6 +1245,22 @@
                 navigator.serviceWorker.register('service-worker.js');
             });
         }
+        // Force service worker update
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          // New version available
+          if (confirm('New version available! Reload to update?')) {
+            window.location.reload();
+          }
+        }
+      });
+    });
+  });
+}
     </script>
     <script>
         function isMobileDevice() {
