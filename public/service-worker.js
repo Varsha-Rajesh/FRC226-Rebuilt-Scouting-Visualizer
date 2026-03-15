@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sharkscout-cache-lake-city-for-realz-v2'; // Increment this when updating
+const CACHE_NAME = 'sharkscout-cache-lake-city-v3'; // Increment this when updating
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

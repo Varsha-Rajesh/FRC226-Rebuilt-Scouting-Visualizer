@@ -154,7 +154,12 @@ function renderRankingTable() {
     const avgAutoFerried = Math.round((avg(matches, 'Auto Fuel Ferried') || 0) * 100) / 100;
     const avgTeleFerried = Math.round((avg(matches, 'Tele Fuel Ferried') || 0) * 100) / 100;
 
-    const autoClimbAttempts = matches.filter(r => r['Climb Auto'] && r['Climb Auto'] !== '' && r['Climb Auto'] !== 'F').length;
+    // Auto climb attempts - sum of 1s and Fs
+    const autoClimbAttempts = matches.filter(r => {
+      const val = r['Climb Auto']?.toString().trim();
+      return val === '1' || val === 'F';
+    }).length;
+
     const autoClimbSuccesses = matches.filter(r => r['Climb Auto'] === '1').length;
 
     const stuckOnBar = matches.reduce((sum, r) => sum + (parseInt(r['Stuck On Bar']) || 0), 0);
@@ -163,7 +168,11 @@ function renderRankingTable() {
     const avgTeleClimbPoints = avg(matches, 'Tele Climb Points') || 0;
     const avgClimbPoints = avgAutoClimbPoints + avgTeleClimbPoints;
 
-    const climbAttempts = matches.filter(r => r['Climb Teleop'] && r['Climb Teleop'] !== '' && r['Climb Teleop'] !== 'F').length;
+    // Tele climb attempts - sum of 3s, 2s, 1s, and Fs
+    const climbAttempts = matches.filter(r => {
+      const val = r['Climb Teleop']?.toString().trim();
+      return val === '3' || val === '2' || val === '1' || val === 'F';
+    }).length;
 
     const climbSuccesses = matches.filter(r => {
       const val = parseInt(r['Climb Teleop']);
@@ -181,11 +190,11 @@ function renderRankingTable() {
 
     const maxDefenseRatings = Math.max(...matches.map(r => parseFloat(r['Robot Defense']) || 0).filter(v => !isNaN(v)), 0);
 
+    // Robot died count - just the number of times they died (no percentage)
     const diedCount = matches.filter(r => {
       const val = parseFloat(r['Robot Died']);
       return val === 0.5 || val === 1;
     }).length;
-    const robotDiedPercent = matches.length ? ((diedCount / matches.length) * 100).toFixed(1) : '0.0';
 
     const shootingAccuracy = (() => {
       const accuracyVals = matches
@@ -246,7 +255,7 @@ function renderRankingTable() {
       driverSkill,
       countDefenseRatings,
       maxDefenseRatings,
-      robotDiedPercent,
+      robotDied: diedCount,
       shootingAccuracy,
       autoOPR: teamOpr.autoOPR,
       teleOPR: teamOpr.teleOPR,
@@ -280,7 +289,7 @@ function renderRankingTable() {
       stat.driverSkill,
       stat.countDefenseRatings,
       stat.maxDefenseRatings,
-      stat.robotDiedPercent + '%'
+      stat.robotDied  // Now just the count, no percentage
     ];
 
     if (hasOprData) {
@@ -308,14 +317,15 @@ function renderRankingTable() {
       'Driver Skill',
       'Count Defense Ratings',
       'Max Defense Ratings',
-      'Robot Died %'
+      'Robot Died'  // Changed from 'Robot Died %'
     ];
 
     if (hasOprData) {
       columnNames.push('Auto OPR', 'Tele OPR');
     }
 
-    const flipColumns = ['Stuck on Bar', 'Robot Died %'];
+    // Columns where LOWER numbers are better (should be red when high, green when low)
+    const flipColumns = ['Stuck on Bar', 'Robot Died'];
 
     values.forEach((val, i) => {
       let bgColor = '';
@@ -339,7 +349,7 @@ function renderRankingTable() {
             case 'Driver Skill': return s.driverSkill;
             case 'Count Defense Ratings': return s.countDefenseRatings;
             case 'Max Defense Ratings': return s.maxDefenseRatings;
-            case 'Robot Died %': return parseFloat(s.robotDiedPercent);
+            case 'Robot Died': return s.robotDied;
             case 'Stuck on Bar': return s.stuckOnBar;
             case 'Auto OPR': return s.autoOPR;
             case 'Tele OPR': return s.teleOPR;
@@ -355,6 +365,8 @@ function renderRankingTable() {
           let normalized =
             maxVal > minVal ? (numVal - minVal) / (maxVal - minVal) : 0.5;
 
+          // For columns in flipColumns, lower numbers should be green (normalized near 0 = green, near 1 = red)
+          // So we need to flip the normalized value: 0 becomes green, 1 becomes red
           if (flipColumns.includes(colName)) {
             normalized = 1 - normalized;
           }
@@ -371,6 +383,7 @@ function renderRankingTable() {
   });
 
   columnMapping['weightedTeleFuel'] = 3; 
+  columnMapping['robotDied'] = 18;
 
   updateRankingUIForOpr(hasOprData);
 
